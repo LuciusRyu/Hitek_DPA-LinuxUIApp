@@ -1,0 +1,12 @@
+<HITEK_LINUX_UI>
+	<type>REMOTE</type>
+	<status>1</status>
+	<sys_id>REMOTE XX:XX:XX</sys_id>
+	<setup_uri>file:///home/linaro/workspace/hitek-linux-ui-app/local_web/setup.html</setup_uri>
+	<index_uri>file:///home/linaro/workspace/hitek-linux-ui-app/local_web/remote_index.html</index_uri>
+	<network>
+		<interface>eth0</interface>
+		<broadcast_port>40311</broadcast_port>
+		<v4type>DHCP</v4type>
+	</network>
+</HITEK_LINUX_UI>

@@ -1,0 +1,60 @@
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Landing page</title>
+        <link rel="stylesheet" href="./assets/css/penta.css" />
+        <script src="./assets/js/tailwind.js"></script>
+        <script src="js/converter.js"></script>
+        <script src="js/setup_base.js"></script>
+        <script>
+            let g_timer = null;
+            let g_sysUrl = 'http://172.18.0.8/';
+
+            function openSetup() {
+                let jsv = { act: 'SYS_OPEN_SETUP', payload: 'NONE' };
+                call_hitek_native(JSON.stringify(jsv));
+            }
+
+            function checkStatus(req, status) {
+                if (status == 200) {
+                    // URL 존재
+                    clearInterval(g_timer);
+                    window.location.replace(g_sysUrl);
+                } else {
+                    console.log('Status check failed: ' + status);
+                }
+            }
+
+            function urlExistCheck(url) {
+                var xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function () {
+                    if (this.readyState == 4) checkStatus(this, this.status);
+                };
+                xhr.open('HEAD', url);
+                xhr.send();
+            }
+
+            function startSystemCheck() {
+                g_timer = setInterval(function () {
+                    urlExistCheck(g_sysUrl);
+                }, 2000);
+            }
+        </script>
+    </head>
+    <body bgcolor="black" text="white" onload="startSystemCheck();">
+        <div id="main_area">
+            <div class="flex items-center justify-center flex-col min-h-screen">
+                <div class="mb-[20px]">
+                    <img src="./assets/images/settingLogo.png" />
+                    <div class="text-2xl text-center mt-[20px]">초기 셋팅 설정 로딩중....</div>
+                </div>
+                <!-- <div
+                    class="flex items-center justify-center bg-[#1573d0] rounded-[8px] text-sm text-center w-[400px] h-[44px] cursor-pointer"
+                    onclick="openSetup();"
+                >
+                    시스템 재설정
+                </div> -->
+            </div>
+        </div>
+    </body>
+</html>

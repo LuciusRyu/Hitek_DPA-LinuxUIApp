@@ -1,0 +1,164 @@
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <title>Landing page</title>
+        <link rel="stylesheet" href="./assets/css/penta.css" />
+        <script src="/assets/js/tailwind.js"></script>
+        <script src="/assets/js/flowbite.js"></script>
+        <script src="js/converter.js"></script>
+        <script src="js/setup_base.js"></script>
+        <script src="remote/version_remote.js"></script>
+        <script>
+            let g_timer = null;
+
+            class simpleMain {
+                constructor() {
+                    this.mtxList = [];
+                    this.calledIP = "";
+                    this.xhttp = null;
+                    this.step = 0;
+                    this.counter = 0;
+                }
+
+                doStep() {
+                    if (this.step == 0) {
+                        this.counter++;
+                        if (this.counter > 3) {
+                            if (g_timer != null) clearInterval(g_timer);
+                            alert("시스템 초기화 실패 - 하드웨어 연결 상태를 확인한 후 재 시작하세요");
+                        }
+                        else {
+                            let data = { act: "GET_SYS_CONFIG", payload: "NONE" };
+                            call_hitek_native(JSON.stringify(data));
+                        }
+                    } else if (this.step == 1) {                    
+                        let data = { act: "GET_MAINTX_LIST", payload: "NONE" };
+                        call_hitek_native(JSON.stringify(data));
+                    } else if (this.step == 2) {
+                        this.counter++;
+                        if (this.counter > 1) {
+                            console.log("No response... retry...");
+                            this.counter = 0;
+                            this.getCodeVersion();
+                        }
+                    }
+                }
+
+                on_NativeCall(jsV) {
+                    if (jsV.act == "GET_SYS_CONFIG_RES") {
+                        let sysInfo = jsV.payload;
+                        if (sysInfo.status == "OK") {
+                            this.step = 1;
+                            this.counter = 0;
+                            let data = { act: "GET_MAINTX_LIST", payload: "NONE" };
+                            call_hitek_native(JSON.stringify(data));    
+                        }
+                        else if (sysInfo.status == "ING") {
+                            console.log("Wait for system info...." + this.counter);
+                        }
+                        else {
+                            if (g_timer != null) clearInterval(g_timer);
+                            console.log(sysInfo);
+                            alert(`시스템 초기화 실패 - ${sysInfo.error}\n하드웨어 연결 상태를 확인한 후 재 시작하세요`);
+                        }
+                    }
+                    else if (jsV.act == "GET_MAINTX_LIST_RES" || jsV.act == "MAINTX_LIST_CHANGED") {
+                        if (jsV.payload == "NONE") return;
+                        if (this.step == 1) {
+                            this.step = 2;
+                            this.counter = 0;
+                            this.mtxList = jsV.payload;
+                            this.getCodeVersion();    
+                        }
+                    } else if (jsV.act == "SYS_RUN_COMMAND_RES") {
+                        if (this.step == 10) {
+                            //Update 완료 - 페이지 리로드
+                            if (g_timer != null) clearInterval(g_timer);
+                            let jsv = { act: "SYS_OPEN_MAIN", payload: "NONE" };
+                            call_hitek_native(JSON.stringify(jsv));
+                        }
+                    }
+                }
+
+                getCodeVersion() {
+                    if (this.mtxList.length < 1) return;
+
+                    let szIP = this.mtxList[0].ip;
+                    let tURI = "http://" + szIP + "/rest/hitek_dev_call.php";
+                    let data = { act: "CHECK_REMOTE_CODE_VERSION", dev_type: "REMOTE", payload: g_code_version_remote };
+                    console.log("Post URL:" + tURI);
+                    console.log("Current code version=" + g_code_version_remote);
+
+                    this.calledIP = szIP;
+
+                    this.xhttp = new XMLHttpRequest();
+                    this.xhttp.onreadystatechange = this.on_getCodeVersion.bind(this);
+                    this.xhttp.open("POST", tURI);
+                    this.xhttp.setRequestHeader("Content-Type", "application/json");
+
+                    this.xhttp.send(JSON.stringify(data));
+                }
+
+                on_getCodeVersion() {
+                    if (this.xhttp == null) return;
+                    if (!(this.xhttp.readyState == this.xhttp.DONE && this.xhttp.status == 200)) {
+                        return;
+                    }
+                    console.log(this.xhttp.responseText);
+
+                    let jsRecv = null;
+                    try {
+                        jsRecv = JSON.parse(this.xhttp.responseText);
+                    } catch (e) {
+                        console.log("ERROR: Json parsing - " + e);
+                        console.log("Origin text:");
+                        console.log(this.xhttp.responseText);
+                        jsRecv = null;
+                    }
+                    this.xhttp = null;
+                    if (jsRecv == null) return;
+                    if (jsRecv.act != "CHECK_REMOTE_CODE_VERSION") {
+                        console.error("ERROR: Invalid response..." + jsRecv);
+                        return;
+                    }
+                    if (jsRecv.res) {
+                        //업데이트가 있음
+                        console.log("Page source code update available...");
+                        let tcmd = "export CALLED_IP='" + this.calledIP + "'; " + jsRecv.payload;
+                        console.log("Run cmd:" + tcmd);
+                        let cmdPayload = { cmd: tcmd, cmd_id: 1 };
+                        let jsv = { act: "SYS_RUN_COMMAND", payload: cmdPayload };
+                        this.step = 10;
+                        call_hitek_native(JSON.stringify(jsv));
+                    } else {
+                        //페이지 이동
+                        this.step = 3;
+                        if (g_timer != null) clearInterval(g_timer);
+
+                        console.log("Check update done.. move to main page...[" + jsRecv.error + "]");
+                        window.location.replace("remote/index.html");
+                    }
+                }
+            }
+
+            g_main = new simpleMain();
+
+            function startSystemCheck() {
+                g_timer = setInterval(function () {
+                    g_main.doStep();
+                }, 2000);
+            }
+        </script>
+    </head>
+    <body bgcolor="black" text="white" onload="startSystemCheck();">
+        <div id="main_area">
+            <div class="flex items-center justify-center flex-col min-h-screen">
+                <div class="mb-[20px]">
+                    <img src="./assets/images/settingLogo.png" />
+                    <div class="text-2xl text-center mt-[20px]">시스템 접속 중....</div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

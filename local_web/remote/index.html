@@ -1,0 +1,21 @@
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Remote main</title>
+        <link rel="stylesheet" href="../assets/css/penta.css" />
+        <link rel="stylesheet" href="../assets/css/checkbox.css" />
+        <link rel="stylesheet" href="../assets/css/mediaModal.css" />
+        <script src="../js/converter.js"></script>
+        <script src="js/webtoolkit.base64.js"></script>
+        <script src="js/base.js"></script>
+        <script src="../assets/js/tailwind.js"></script>
+        <script language="JavaScript">
+            //핀치투줌 방지
+            document.addEventListener('touchstart', e => { if (e.touches.length > 1) {  e.preventDefault(); }}, {passive: false});
+            document.addEventListener('touchmove', e => { if (e.touches.length > 1) {  e.preventDefault(); }}, {passive: false});
+        </script>
+    </head>
+    <body onload="onSystemReady();">
+        <div id="main_area"></div>
+    </body>
+</html>

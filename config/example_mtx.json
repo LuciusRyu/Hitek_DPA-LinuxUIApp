@@ -1,0 +1,44 @@
+
+{
+    "example_total": {
+        "dante_dev_id": "DTX-013a97",
+        "use_vrrp": true,
+        "vrrp": {
+            "id": 100,
+            "is_master": true,
+            "priority": 1,
+            "interface": "eth0",
+            "ip": "192.168.20.80",
+            "clusters": [
+                {"id": "MTX1-1", "ip": "192.168.20.55"}
+            ]
+        },
+        "uart": {
+            "type": "TCPIP",
+            "target_ip": "192.168.0.3",
+            "target_port": 5000,
+            "net": {
+                "interface": "eth1",
+                "type": "STATIC",
+                "static_ip": "192.168.0.2",
+                "static_netmask": "255.255.255.0",
+                "static_gateway": "192.168.0.1",
+                "static_dns1": "8.8.8.8",
+                "static_dns2": ""
+            }
+        }
+    },
+    "example_rs232_only": {
+        "uart": {
+            "type": "RS232",
+            "dev_name": "/dev/ttyS3",
+            "baudrate": 9600
+        }
+    },
+    "example_uart_none": {
+        "uart": {
+            "type": "NONE"
+        }
+    }
+}
+

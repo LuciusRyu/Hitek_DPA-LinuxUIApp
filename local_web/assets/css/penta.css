@@ -1,0 +1,159 @@
+@font-face {
+    font-family: "Spoqa Han Sans Neo";
+    font-weight: 700;
+    src: local("Spoqa Han Sans Neo Bold"), url(../fonts/SpoqaHanSansNeo-Bold.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: "Spoqa Han Sans Neo";
+    font-weight: 500;
+    src: local("Spoqa Han Sans Neo Medium"), url(../fonts/SpoqaHanSansNeo-Medium.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: "Spoqa Han Sans Neo";
+    font-weight: 400;
+    src: local("Spoqa Han Sans Neo Regular"), url(../fonts/SpoqaHanSansNeo-Regular.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: "Spoqa Han Sans Neo";
+    font-weight: 300;
+    src: local("Spoqa Han Sans Neo Light"), url(../fonts/SpoqaHanSansNeo-Light.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: "Spoqa Han Sans Neo";
+    font-weight: 100;
+    src: local("Spoqa Han Sans Neo Thin"), url(../fonts/SpoqaHanSansNeo-Thin.woff2) format("woff2");
+}
+
+* {
+    font-family: "Spoqa Han Sans Neo", "sans-serif";
+    font-size: 16px;
+    color: #fff;
+}
+
+html {
+    --penta-box-1st: #121215;
+    --penta-box-2nd: #232326;
+    --penta-box-3rd: #343437;
+    --penta-box-4th: #454548;
+    --penta-box-5th: #67676a;
+    --penta-box-selected: #33394a;
+    --penta-font-w-1st: #ffffff;
+    --penta-font-w-2nd: #c5c5c5;
+    --penta-font-w-3rd: #959595;
+    --penta-font-w-ph: #757575;
+    --penta-font-b-1st: #222222;
+    --penta-font-b-2nd: #434343;
+    --penta-font-b-3rd: #767676;
+    --penta-font-b-ph: #989898;
+    --penta-colors-1st: #3fa2f3;
+    --penta-colors-2nd: #1573d0;
+    --penta-colors-red1: #ffe3e3;
+    --penta-colors-red2: #f44d4d;
+    --penta-colors-red3: #f07b72;
+    --penta-colors-blue1: #e3f2fd;
+    --penta-colors-range1: #ffe7c3;
+    --penta-colors-green1: #b5ffdb;
+    --penta-colors-white: #ffffff;
+    --penta-colors-gray: #7f8ba8;
+    --penta-colors-black1: #2a2a2a;
+    --penta-colors-black2: #121212;
+    --penta-colors-black3: #4a4a4a;
+    --penta-colors-black4: #3a3a3a;
+    --penta-btn-normal: rgba(43 134 255); /*rgba(91 155 213) #2B86FF c2dcff*/
+    --penta-btn-bgm: rgba(112 173 71); /*rgba(112 173 71) #70AD47 CCE5BC*/
+    --penta-btn-emg: rgba(255 64 64); /*rgba(237 125 49) #FF4040 FFB0B0*/
+
+    --penta-btn-side-main: #2b86ff;
+    --penta-btn-side-remote: rgba(255, 192, 0);
+    --penta-btn-side-bgm: rgba(112, 173, 71);
+    --penta-btn-side-etc: rgba(0, 32, 96);
+
+    --penta-base-radius: 8px;
+
+    --color-gray2: #656565;
+}
+
+body {
+    background-color: #121215;
+}
+
+.input-reset {
+    appearance: none; /* 브라우저 기본 스타일 제거 */
+    border: none; /* 기본 테두리 제거 */
+    outline: none; /* 포커스 시 기본 테두리 제거 */
+    background: none; /* 배경색 제거 */
+    font-family: inherit; /* 부모 요소의 글꼴 상속 */
+    font-size: inherit; /* 부모 요소의 글꼴 크기 상속 */
+    color: inherit; /* 부모 요소의 텍스트 색깔 상속 */
+    padding: 0; /* 내부 여백 초기화 */
+    margin: 0; /* 외부 여백 초기화 */
+}
+
+.button-reset {
+    appearance: none; /* 기본 스타일 제거 */
+    background-color: transparent; /* 배경색 초기화 */
+    border: none; /* 테두리 초기화 */
+    margin: 0; /* 마진 초기화 */
+    padding: 0; /* 패딩 초기화 */
+    font: inherit; /* 글꼴 초기화 */
+    cursor: pointer; /* 커서 설정 */
+    outline: none; /* 포커스 시 테두리 제거 */
+}
+
+/* 스크롤바 디자인 변경 */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #2f3542;
+    border-radius: 10px;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background-color: grey;
+    border-radius: 10px;
+    box-shadow: inset 0px 0px 5px white;
+}
+
+/* grid 커스텀 */
+.grid-cols-auto-156px {
+    grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+}
+
+/* 화재수신기 슬라이더 */
+.carousel {
+    position: relative;
+    overflow: hidden;
+}
+
+.carousel-item .slide-image {
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+.carousel-item {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: none;
+    top: 0;
+    left: 100%;
+}
+
+.carousel-item.active {
+    left: 0;
+    transition: all 0.4s ease-out;
+}
+
+.carousel-item div {
+    height: 100%;
+}
+
+.custom-click {
+    background-color: #1573d0 !important;
+}
