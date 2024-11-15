@@ -650,7 +650,7 @@ const BroadcastMain = class broadcast_main {
             }                    
             if (this.broadcast.autoChime) {
                 bNeedMedia = true;
-                dom = gDOM("hide_mic_modal");
+                let dom = gDOM("hide_mic_modal");
                 if (dom != null) dom.innerText = "종료 차임 재생중..";
                 if (this.broadcast.txch != this.broadcast.media_tx) {
                     this.broadcast.state = BRDSTATE_EXCHANGE_TX2MEDIA;
@@ -660,7 +660,7 @@ const BroadcastMain = class broadcast_main {
                     this._setMediaPlayer(this.chimeMedia[1]);
                 }
             } else {
-                dom = gDOM("hide_mic_modal");
+                let dom = gDOM("hide_mic_modal");
                 if (dom != null) dom.innerText = "종료 차임 재생중..";
                 if (this.broadcast.edChime) {
                     bNeedMedia = true;
