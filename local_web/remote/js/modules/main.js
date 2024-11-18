@@ -26,11 +26,18 @@ const RemoteMain = class remote_main {
             <div id='${DIVID_MAINCTS}' class='h-[calc(100%-60px)] p-[12px]'></div>
         </div>
         <div id="${DIVID_MAINCTS_MODAL}"></div>
+        <div class="m-modal" id="${DIVID_WAITING_MODAL}">
+            <div class="m-modal-content">
+                <div class="dark_spinner"></div>
+            </div>
+        </div>
         `;
 
         gDOM("main_area").innerHTML = html;
         this.menu_bar.Initialize();
         this.connector.Initialize(this.on_ConnectorEvent.bind(this));
+        
+        showWaitModal(false);
         this.switchPage("broadcast");
     }
 

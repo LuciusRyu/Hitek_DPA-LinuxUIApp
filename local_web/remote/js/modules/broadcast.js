@@ -32,6 +32,7 @@ const BroadcastMain = class broadcast_main {
         this.totalSeconds = 0;
         this.intervalId = null;
         this.outSelection = [];
+        this.controlESPK_List = [];
     }
 
     BuildLayout() {
@@ -71,7 +72,7 @@ const BroadcastMain = class broadcast_main {
                 return;
             }
 
-            if (jsV.changed == "device_list" || jsV.changed == "group_list" || jsV.changed == "media_list" || jsV.changed == "uart_list") {
+            if (jsV.changed == "device_list" || jsV.changed == "group_list" || jsV.changed == "media_list" || jsV.changed == "uart_list" || jsV.changed == "enabled_speakers") {
                 if (this.lastSelection.uuid == jsV.mtxConn.mtxInfo.uuid) {
                     console.log("Need to update screen");
                     this._refreshMTX(jsV.mtxConn);
@@ -687,27 +688,55 @@ const BroadcastMain = class broadcast_main {
     }
 
     _selectAllMTXGroup(mtxConn) {
+        let bSelectAll = true;
+        //하나라도 선택된게 있으면 해제
         for (let g of mtxConn.groupList) {
             if (g.idx < 2) continue;
-            let tid = "bdc_group_list_" + g.idx;
-            this._onGroupSelect(tid, g.idx, true);
+            if(this.broadcast.groups.indexOf(g.idx) >= 0) {
+                bSelectAll = false;
+                break;
+            }
         }
+
+        let spkList = [];
+        for (let g of mtxConn.groupList) {
+            if (g.idx < 2) continue;            
+            let tid = "bdc_group_list_" + g.idx;          
+            let tSpks = null;
+            if (bSelectAll) {                  
+                if(this.broadcast.groups.indexOf(g.idx) < 0) tSpks = this._onGroupSelect(tid, g.idx, true);                
+            }            
+            else {
+                if(this.broadcast.groups.indexOf(g.idx) >= 0) tSpks = this._onGroupSelect(tid, g.idx, true);                
+            }
+            if (tSpks != null) spkList = [...spkList, ...tSpks];
+        }
+        this._controlSpeakers(bSelectAll, spkList);        
     }
 
     _onGroupSelect(szDomID, idx, isAll) {
         //this.broadcast = {groups: [], txch: 0, medias: [], state: 0};
-        if (this.broadcast.state != BRDSTATE_IDLE) return;
+        if (this.selectedMtx == null) return null;
+        if (this.broadcast.state != BRDSTATE_IDLE) return null;
         let dom = gDOM(szDomID);
         let exIdx = this.broadcast.groups.indexOf(idx);
+        let grpSpks = this.selectedMtx.getSpeakersOfGroup(idx);
+        let arrSpks = [];
+        for(let egs of grpSpks) arrSpks.push(egs.idx);
+        
+        let bIsEnable = false;
         if (exIdx < 0) {
             this.broadcast.groups.push(idx);
             dom.classList.add("custom-click");
+            bIsEnable = true;
         } else {
-            if (!isAll) {
-                this.broadcast.groups.splice(exIdx, 1);
-                dom.classList.remove("custom-click");
-            }
-        }
+            this.broadcast.groups.splice(exIdx, 1);
+            dom.classList.remove("custom-click");
+        }   
+        
+        this.selectedMtx.onGroupSelect(idx, bIsEnable);
+        if (isAll != true) this._controlSpeakers(bIsEnable, arrSpks);
+        return arrSpks;
     }
 
     _onTXChannelSelect(szDomID, idx) {
@@ -1023,6 +1052,14 @@ const BroadcastMain = class broadcast_main {
             if (brdState != 'IDLE') {
                 szSelectable = "";
                 szBrdState = `<div class="flex items-center justify-center justify-center text-center bg-[#3fa2f3] rounded-[8px]">방송중(${brdState})</div>`;
+            }
+            else {
+                //방송중이 아니면 다른 사람이 선택 중인지 확인한다
+                let enStr = mtxConn.getSpeakerEnabledString(grp.idx);
+                if (enStr != null) {
+                    szSelectable = "";
+                    szBrdState = `<div class="flex items-center justify-center justify-center text-center bg-[#3fa2f3] rounded-[8px]">준비중(${enStr})</div>`;
+                }
             }
 
             if (szSelectable.length <= 0) {
@@ -1625,6 +1662,81 @@ const BroadcastMain = class broadcast_main {
         this._showAlertModal("방송제어 실패", "방송 시작 요청이 실패하였습니다.<br/>" + szMsg);
         this._finalizeBroadcast();
     }
+
+  //개별 앰프 제어
+  _controlSpeakers(bIsEnable, spkIdxList) {
+    let preDev = null;
+    let ctrlList = [];
+    let tch = null;
+    let spk = null;
+
+    if (this.selectedMtx == null) return;
+    
+    for(let spkIdx of spkIdxList) {
+      let tdev = this.selectedMtx.getDeviceBySpeakerIdx(spkIdx);          
+      if (tdev == null) continue;    
+      tch = null;
+      spk = null;
+      for (let ec of tdev.rx_channels) {
+        for (let es of ec.speakers) {
+          if (es.idx == spkIdx) {
+            tch = ec;
+            spk = es;
+            break;
+          }
+        }
+        if (tch != null) break;        
+      }  
+      if (tch == null || spk == null) {
+        console.error("Invalid speaker.. " + spkIdx);
+        return;
+      }
+
+      //console.log(`SpkIdx=${spkIdx}, ch=${tch.order}, code1=${spk.code1}, code2=${spk.code2}`);
+      if (tdev != preDev) {
+        if (preDev != null && ctrlList.length > 0) {
+          this.controlESPK_List.push({enable: bIsEnable, dev_name: preDev.name, speakers: ctrlList});
+        }
+        preDev = tdev;
+        ctrlList = [];
+      }
+      ctrlList.push({idx: spkIdx, ch_order: tch.order, amp_order: spk.order, code1: spk.code1, code2: spk.code2});
+    }
+
+    if (ctrlList.length > 0) {
+      this.controlESPK_List.push({enable: bIsEnable, dev_name: preDev.name, speakers: ctrlList});
+      showWaitModal(true);
+      this._callControlSpeaker();
+    }        
+  }
+
+  _callControlSpeaker() {    
+    if (this.controlESPK_List.length > 0) {
+        //console.log("Call control speaker!!!!");
+        let dat = this.controlESPK_List[0];      
+        let payload = { job: dat };    
+        this.controlESPK_List.splice(0, 1);      
+        this.selectedMtx.rest_call(
+            "control_each_speaker",
+            payload,
+            null,
+            function (bRes, jsRecv, callParam) {
+                if (bRes != true || jsRecv.res != true) {
+                    showWaitModal(false);
+                    this._showAlertModal("오류", "스피커 제어 실패.");
+                    return;
+                }
+                if (this.controlESPK_List.length > 0) {
+                    this._callControlSpeaker();                
+                }
+                else showWaitModal(false);
+            }.bind(this)
+        );    
+
+        return true;
+    }
+    return false;
+  }  
 };
 
 export { BroadcastMain };

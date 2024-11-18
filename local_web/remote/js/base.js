@@ -3,6 +3,7 @@ let g_main = null;
 const DIVID_MENUBAR = "menu_bar";
 const DIVID_MAINCTS = "main_cts";
 const DIVID_MAINCTS_MODAL = "main_cts_modal";
+const DIVID_WAITING_MODAL = "wait_loading_modal";
 
 const MENUID_BROADCAST = "broadcast";
 const MENUID_VOLUME = "volume";
@@ -137,4 +138,11 @@ function getDevModelPrefix(szFor) {
     if (szFor == "PC") return "AVIOUSB"; //'DVS';
 
     return "NONE";
+}
+
+function showWaitModal(bShow) {
+    let dom = gDOM(DIVID_WAITING_MODAL);
+    if (dom == null) return;
+    if(bShow) dom.style.display = "block";
+    else dom.style.display = "none";
 }

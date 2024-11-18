@@ -26,6 +26,7 @@ public:
     bool setLoginPayload(Json::Value payload);
 
     const char *getLocalMediaPath();
+    const char *getBasePath() { return m_szBasePath; }
     pTAGInformation OpenConfig(Information_Parser &IFP);
 
 protected:

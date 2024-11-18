@@ -563,9 +563,31 @@ void MainLogic::runSystemCommand(Json::Value jsPayload) {
     
     jsP["result"] = "ERROR";
     if (jsPayload.isMember("cmd") && jsPayload.isMember("cmd_id")) {
+        char* szCmdT;
+        bool bNeedReturn = false;
         jsP["result"] = "OK";
-        jsP["cmd_id"] = jsPayload["cmd_id"];
-        jsP["system_result"] = system(jsPayload["cmd"].asCString());
+        jsP["cmd_id"] = jsPayload["cmd_id"];        
+        if (jsPayload.isMember("need_result")) {
+            if (jsPayload["need_result"].asBool()) bNeedReturn = true;
+        }
+        szCmdT = new char[DARK_MAX_PATH];
+        if (bNeedReturn) DARK_SNPRINTF2(szCmdT, DARK_MAXPATH, "%s > %s/shell_res.txt", jsPayload["cmd"].asCString(), m_config.getBasePath());
+        else DARK_SNPRINTF2(szCmdT, DARK_MAXPATH, "%s", jsPayload["cmd"].asCString());        
+        
+        system((const char *)szCmdT);
+        if (bNeedReturn) {
+            FILE* fp = NULL;
+            DARK_SNPRINTF2(szCmdT, DARK_MAXPATH, "%s/shell_res.txt", m_config.getBasePath());
+            if (DARKPIF_fopen(&fp, szCmdT, "r") == true) {
+                memset(szCmdT, 0, DARK_MAXPATH);
+                fread(szCmdT, 1, DARK_MAXPATH, fp);
+                fclose(fp);
+                jsP["system_result"] = szCmdT;
+            }
+            else jsP["system_result"] = "NONE";
+        }
+        else jsP["system_result"] = "NONE";
+        delete[] szCmdT;        
     }
 
     jsV["act"] = "SYS_RUN_COMMAND_RES";

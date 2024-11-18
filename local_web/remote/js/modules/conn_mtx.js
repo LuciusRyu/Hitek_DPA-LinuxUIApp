@@ -27,6 +27,10 @@ const MainTXConnector = class main_tx_connector {
         this.restQueue = [];
         this.restQueue_inAction = false;
         this.restQueue_timer = null;        
+
+        this.selectedSpeakers = [];
+        this.selectedGroups = [];
+        this.enabledSpeakers = [];
     }
 
     checkID(mtxInfo) {
@@ -271,6 +275,24 @@ const MainTXConnector = class main_tx_connector {
         }
         return 'IDLE';
     }
+
+    getSpeakerEnabledString(iIdx) {        
+        let spkGrp = this.getSpeakersOfGroup(iIdx);
+        let enSpk = 0;
+
+        for (let es of spkGrp) {
+            //내가 선택한건 제외
+            if (this.selectedSpeakers.indexOf(es.idx) >= 0) continue;
+            if (this.enabledSpeakers.indexOf(es.idx) < 0) continue;
+            enSpk++;
+        }
+
+        if (enSpk > 0) {
+            return `${enSpk}/${spkGrp.length}`;
+        }
+        return null;
+    }
+
     
     getSpeakersOfGroup(iGrpId) {
         let res = new Array();
@@ -285,6 +307,45 @@ const MainTXConnector = class main_tx_connector {
         }
         return res;
     }
+
+    onGroupSelect(iGrpId, bSelect) {
+        let tGrpSpks = this.getSpeakersOfGroup(iGrpId);
+        let exIdx = this.selectedGroups.indexOf(iGrpId);
+        if (bSelect) {
+            if (exIdx < 0) this.selectedGroups.push(iGrpId);
+        }
+        else {
+            if (exIdx >= 0) this.selectedGroups.splice(exIdx, 1);
+        }
+
+        for(let es of tGrpSpks) {
+            exIdx = this.selectedSpeakers.indexOf(es.idx);
+            if (bSelect) {
+                if (exIdx < 0) this.selectedSpeakers.push(es.idx);
+            }
+            else {
+                if (exIdx >= 0) this.selectedSpeakers.splice(exIdx, 1);
+            }
+        }
+        let tData = {speakers: this.selectedSpeakers, groups: this.selectedGroups};
+        this._ws_sendUIBroadcast({event: "data_changed", data_type: "broadcast_output", data: tData});    
+    }
+
+    getDeviceBySpeakerIdx(iIdx, bWithChannel) {
+        for (let i = 0; i < this.devList.length; i++) {
+            for (let i2 = 0; i2 < this.devList[i].rx_channels.length; i2++) {
+                let spks = this.devList[i].rx_channels[i2].speakers;
+                for (let i3 = 0; i3 < spks.length; i3++) {
+                    if (parseInt(spks[i3].idx) == iIdx) {
+                        if (bWithChannel) return {dev: this.devList[i], ch: this.devList[i].rx_channels[i2]};
+                        else return this.devList[i];
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    
     
     _checkAndReport() {        
         if (this.state == 1) {
@@ -671,38 +732,51 @@ const MainTXConnector = class main_tx_connector {
 
         if (jsV.act == 'who_are_you') {
             let data = { act: jsV.act, error: 'NONE', resreq: false, payload: { idx: 9999999, name: this.baseInfo.sys_id, type: 'REMOTE' } };
-            this.websocket.send(JSON.stringify(data));
+            this._ws_sendAsJSON(data);
             console.log('Websocket initialized');
             this._iConnState = 10;
             this._reconnCount = 1;
             this._checkAndReport();
         } 
         else if(jsV.act == 'update_notify') {
-            if (jsV.payload.target == 'device') { //장치 상태가 변경됨.. 걍 업뎃
+            let szTarget = jsV.payload.target;
+            if (szTarget == 'device') { //장치 상태가 변경됨.. 걍 업뎃
                 this._rest_getDevList(true);                
             }
-            else if (jsV.payload.target == 'broadcast') { //방송 상태 업데이트
+            else if (szTarget == 'broadcast') { //방송 상태 업데이트
                 this._rest_getBroadcastState(true);
             }
-            else if (jsV.payload.target == 'group') { //그룹 정보
+            else if (szTarget == 'group') { //그룹 정보
                 this._rest_getGroupList();
             }        
-            else if (jsV.payload.target == 'user') { //사용자 정보
+            else if (szTarget == 'user') { //사용자 정보
                 console.log("User info updated");
             }
-            else if (jsV.payload.target == 'emr_group') { //긴급/화재 정보
+            else if (szTarget == 'emr_group') { //긴급/화재 정보
                 this._rest_getEMRGroups();
                 this._rest_getDevList(false); //그룹정보가 amp에 속해있기때문에 이것도 업뎃해야 한다
             }
-            else if (jsV.payload.target == 'media') { //음원
+            else if (szTarget == 'media') { //음원
                 this._rest_getMediaList(true);
             }            
-            else if (jsV.payload.target == 'uart_state') { //긴급 방송 정보
+            else if (szTarget == 'uart_state') { //긴급 방송 정보
                 if (jsV.payload.type == 'update') {
                     this._refreshUARTState(jsV.payload.detail);
                 }
                 else console.error("Unknown uart_state type: " + jsV.payload.type);
             }        
+            else if (szTarget == 'det_device') { //장치 검색됨 - 리모트는 무시
+            }
+            else if(szTarget == 'mtx_hardware') {} //MTX Hardware - 볼륨
+            else if (szTarget == 'runtime_memory') { //스피커 선택 상태가 업데이트됨
+                if (jsV.payload.detail == 'spk_state') { //스피커 상태가 업데이트 됨
+                    this._requestRuntimeSpkState();
+                }
+                else {
+                    console.log('Rumtime memory updated detail = ' + jsV.payload.detail);
+                    console.log(jsV.payload);  
+                }          
+            }
             else console.log("unknown update_notify: " + jsV.payload.target);
         }
         else if(jsV.act == 'receive_from') { //최초 접속시 이미 접속되어있던 애덜이 보내준다
@@ -711,6 +785,18 @@ const MainTXConnector = class main_tx_connector {
         }
         else if(jsV.act == 'ui_broadcast') { //사용자가 데이터 전송
         }
+        else if (jsV.act == 'get_key_res') {
+            let pld = jsV.payload;
+            if (pld.memKey == 'spk_state') {
+                //console.log("spk state updated");
+                //console.log(pld.memVal);  
+                this._validateSpeakerStates(pld.memVal);
+            }
+            else {
+                console.log("Unknown key value");
+                console.log(jsV);  
+            }
+        }      
         else {
             console.log("Websocket unknown message..." + jsV.act);            
         }
@@ -722,7 +808,50 @@ const MainTXConnector = class main_tx_connector {
         this._reconnCount++;
         this._reconnTimeout = setTimeout(this._Websocket_connect.bind(this), 1000);
     }
+
+    _requestRuntimeSpkState() {
+        let data = {act: 'get_key', resreq: false, payload: {memKey: 'spk_state'}};
+        this._ws_sendAsJSON(data);      
+    }       
+
+    _ws_sendAsJSON(dictData) {
+        if (this.websocket == null) {
+            console.error('WS_ERROR: Not initialized..');
+            return false;
+        }
+        this.websocket.send(JSON.stringify(dictData));
+        return true;
+    }    
+
+    _ws_sendUIBroadcast(jsPayload) {
+        let data = {act: 'ui_broadcast', resreq: false, payload: jsPayload};
+        this._ws_sendAsJSON(data);
+    }    
+
+    _validateSpeakerStates(arrEnabledSpeakers) {        
+        if (arrEnabledSpeakers == null) arrEnabledSpeakers = [];
     
+        //일단 내꺼가 활성화 상태인데 활성 목록에 없다면 제거해야 한다
+        if(this.selectedSpeakers.length > 0) {
+            let bRemoved = true;
+            while(bRemoved == true) { //for of 하니까 splice 했을때 제대로 연산이 안됨
+                bRemoved = false;
+                for(let spkIdx of this.selectedSpeakers) { 
+                    if(arrEnabledSpeakers.indexOf(spkIdx) < 0) {
+                        console.log("My speaker is not in list: " + spkIdx);
+                        let remIdx = this.selectedSpeakers.indexOf(spkIdx);
+                        if (remIdx >= 0) this.selectedSpeakers.splice(remIdx, 1);
+                        bRemoved = true;
+                        break;
+                    }
+                }      
+            }
+        }
+
+        // 리모트에서는 굳이 다른 처리는 할 필요 없는거 같다        
+        this.enabledSpeakers = [...arrEnabledSpeakers];
+        if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "enabled_speakers");
+    }    
 }
 
 export { MainTXConnector };
