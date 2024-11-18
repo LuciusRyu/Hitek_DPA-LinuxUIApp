@@ -146,3 +146,54 @@ function showWaitModal(bShow) {
     if(bShow) dom.style.display = "block";
     else dom.style.display = "none";
 }
+
+function parseLinuxVolume(szRes) {
+    let spl = szRes.split(' ');
+    if (spl.length < 3) {
+        console.error("Linux volume parsing failed: " + jsPayload.run_result);
+        return;
+    }
+    if (!(spl[0] == 'Simple' && spl[1] == 'mixer' && spl[2] == 'control')) {
+        console.error("Linux volume parsing failed3: " + jsPayload.run_result);
+        return;
+    }
+
+    let szPer = '0%';
+    for(let i = 3; i < spl.length; i++) {
+        spl[i] = spl[i].replace(/\n|\r/g, '');
+        if (spl[i] == '[on]') {
+            szPer = spl[i - 1];
+            break;
+        }
+    }
+    szPer = szPer.replace(/\[|\]|\%/g, '');
+    //console.log("Linux volume = " + szPer);
+    return szPer;
+}
+
+function mainCHVolConversion(bToPercent, tVal) {
+    //PGA Gain 0에서 120단계로 증폭, 0.5db단위
+    //120 ~ 127은 동일
+    //최상위 비트는 Mute
+    let res = parseInt(tVal);
+
+    if (bToPercent === true) {
+        if (res < 0) res = 0;
+        if (res > 127) res = 0;
+        else if (res > 120) res = 120;
+        
+        res = parseInt((100 * res) / 120, 10);
+        if (res > 100) res = 100;
+    } else {
+        if (res <= 0) {
+            res = 128;
+        }
+        else {
+            if (res > 100) res = 100;
+            res = parseInt((120 * res) / 100);
+        }
+    }
+
+    return res;
+}
+

@@ -125,6 +125,7 @@ const VolumeMain = class volume_main {
     }
 
     on_NativeCall(jsV) {
+        //console.log("On Native Call - " + jsV.act);
         if (jsV.act == "GET_HARDWARE_INFO_RES") {
             if (jsV.payload == "NONE") {
                 console.error("GET_HARDWARE_INFO failed: " + jsV.error);
@@ -149,7 +150,7 @@ const VolumeMain = class volume_main {
 
                 console.log("Received volume:\n" + JSON.stringify(volumes));
                 for (let v of volumes) {
-                    let cv = this._mainCHVolConversion(true, v.volume);
+                    let cv = mainCHVolConversion(true, v.volume);
                     cVolumes.push({ channel: v.channel, volume: cv / 100.0 });
                 }
 
@@ -163,9 +164,15 @@ const VolumeMain = class volume_main {
             console.log("Set Hardware info done!");
             console.log(JSON.stringify(jsV));
         }
-        else if (jsV.act == "SYS_RUN_COMMAND") {
-            console.log("Sys run command");
-            console.log(JSON.stringify(jsV));
+        else if (jsV.act == "SYS_RUN_COMMAND_RES") {
+            //console.log("Sys run command");
+            //console.log(JSON.stringify(jsV));
+            if (jsV.payload.cmd_id == 100 && jsV.payload.system_result.length > 0) {
+                this._parseLinuxVolume(Base64.decode(jsV.payload.system_result));
+            }
+            else if (jsV.payload.cmd_id == 101) {
+                console.log("Linux volume set - done");
+            }
         }
     }
 
@@ -181,16 +188,36 @@ const VolumeMain = class volume_main {
         this.funcCallNative(JSON.stringify(jsv));
     }
 
+    _setMainboardVolume(iVol) {
+        let cmdPayload = { cmd: `amixer set Master ${iVol}%`, cmd_id: 101, need_result: false };
+        let jsv = { act: "SYS_RUN_COMMAND", payload: cmdPayload };
+        this.funcCallNative(JSON.stringify(jsv));
+    }
+    
+    _parseLinuxVolume(szRes) {
+        let szPer = parseLinuxVolume(szRes);
+        let dom = document.querySelector(`#slide_0_sld_btn > div`);
+        if (dom == null) {
+            console.log("ERROR: Channel for volume is not exist");
+            return;
+        }
+        dom.innerText = szPer;        
+        this.sliders[0].SetValue(parseInt(szPer) / 100);
+    }
+
     _onVolumeSet(idx) {
-        if (idx > 0) {
-            let vol = [];
-            let cVolume = document.querySelector(`#slide_${idx}_sld_btn > div`).innerText;        
-            vol.push({ channel: idx - 1, volume: this._mainCHVolConversion(false, cVolume) });
+        let cVolume = document.querySelector(`#slide_${idx}_sld_btn > div`).innerText;        
+        if (idx == 0) {
+            this._setMainboardVolume(parseInt(cVolume));
+        }
+        else {
+            let vol = [];            
+            vol.push({ channel: idx - 1, volume: mainCHVolConversion(false, cVolume) });
             console.log("Set Volume:\n" + JSON.stringify(vol));
 
             let reqV = { act: "SET_HARDWARE_INFO", payload: { type: "adc_volume", value: vol } };        
             this.funcCallNative(JSON.stringify(reqV));
-        }
+        }        
     }
 
     _setChannelAttr(attrs) {
@@ -221,8 +248,7 @@ const VolumeMain = class volume_main {
                 console.log("ERROR: Channel for volume is not exist: " + vol.channel);
                 continue;
             }
-            dom.innerText = vol.volume;
-            //console.log(JSON.stringify(vol));
+            dom.innerText = parseInt(vol.volume * 100).toString();
             this.sliders[vol.channel + 1].SetValue(vol.volume);
         }
     }
@@ -238,32 +264,6 @@ const VolumeMain = class volume_main {
             this.sliders[i].Show();
             this.sliders[i].SetOnChangeCallback(this._onVolumeSet.bind(this, i));
         }
-    }
-
-    _mainCHVolConversion(bToPercent, tVal) {
-        //PGA Gain 0에서 120단계로 증폭, 0.5db단위
-        //120 ~ 127은 동일
-        //최상위 비트는 Mute
-        let res = parseInt(tVal);
-
-        if (bToPercent === true) {
-            if (res < 0) res = 0;
-            if (res > 127) res = 0;
-            else if (res > 120) res = 120;
-            
-            res = parseInt((100 * res) / 120, 10);
-            if (res > 100) res = 100;
-        } else {
-            if (res <= 0) {
-                res = 128;
-            }
-            else {
-                if (res > 100) res = 100;
-                res = parseInt((120 * res) / 100);
-            }
-        }
-
-        return res;
     }
 };
 

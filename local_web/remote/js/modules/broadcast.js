@@ -1,3 +1,5 @@
+import { PentaVolumeSlide } from "./penta_volume_slider.js";
+
 const BRDSTATE_IDLE = 0;
 const BRDSTATE_CHIME_START_WAIT = 1;
 const BRDSTATE_CHIME_START_PLAYING = 2;
@@ -33,6 +35,8 @@ const BroadcastMain = class broadcast_main {
         this.intervalId = null;
         this.outSelection = [];
         this.controlESPK_List = [];
+        this.volumeSliders = [];
+        this.volumeSlideType = 0;
     }
 
     BuildLayout() {
@@ -54,6 +58,45 @@ const BroadcastMain = class broadcast_main {
             console.log("Del local media done: " + jsV.payload);
             this._getLocalMediaList();
         }
+        else if (jsV.act == "GET_HARDWARE_INFO_RES") {
+            if (jsV.payload == "NONE") {
+                console.error("GET_HARDWARE_INFO failed: " + jsV.error);
+                return;
+            }
+            if (jsV.payload.type == "adc_volume") {
+                //volumes = [{channel: 0, volume: 0}, ... ]                
+                let volumes = jsV.payload.volumes;
+                let cVolumes = [];
+                if (volumes == null) {
+                    console.error("Get Channel volume failed...");
+                    return;
+                }
+
+                console.log("Received volume:\n" + JSON.stringify(volumes));
+                for (let v of volumes) {
+                    let cv = mainCHVolConversion(true, v.volume);
+                    cVolumes.push({ channel: v.channel, volume: cv / 100.0 });
+                }
+
+                this._setChannelVolume(cVolumes);
+            } 
+            else {
+                console.error("Unkown type...");
+                console.log(JSON.stringify(jsV));
+            }
+        } 
+        else if (jsV.act == "SET_HARDWARE_INFO_RES") {
+        }
+        else if (jsV.act == "SYS_RUN_COMMAND_RES") {
+            //console.log("Sys run command");
+            //console.log(JSON.stringify(jsV));
+            if (jsV.payload.cmd_id == 100 && jsV.payload.system_result.length > 0) {
+                this._parseLinuxVolume(Base64.decode(jsV.payload.system_result));
+            }
+            else if (jsV.payload.cmd_id == 101) {
+                console.log("Linux volume set - done");
+            }
+        }        
     }
 
     on_ConnectorEvent(szEvt, jsV) {
@@ -333,10 +376,24 @@ const BroadcastMain = class broadcast_main {
             }
         }
 
+        let txNick = "ERROR";
+        if (this.broadcast.media_tx != null) {
+            let myTX = this.selectedMtx.getMyTXDev();
+            for (let txc of myTX.tx_channels) {
+                if (txc.idx == this.broadcast.media_tx) {
+                    txNick = txc.nick_name;
+                    break;
+                }
+            }
+        }
+
+        let szVolMain = this._makeVolumeLayout("음원 출력", 0, 120);
+        let szVolTX = this._makeVolumeLayout(txNick, 1, 120);
+
         html = `
             <div id="media_modal" class="m-modal">
-                <div class="m-modal-content">
-                    <div class="m-modal-play">
+                <div class="m-modal-content" style="width: 864px;">
+                    <div class="m-modal-play" style="width: 46%;">
                         <div class="m-modal-play-title">음원방송</div>
                         <div class="m-modal-play-list">
                             <div class="custom-scrollbar">
@@ -359,7 +416,7 @@ const BroadcastMain = class broadcast_main {
                             </audio>
                         </div>
                     </div>
-                    <div class="m-modal-list">
+                    <div  style="width: 30%; height: 100%; background-color: var(--penta-box-1st); padding: 12px;">
                         <div class="m-modal-list-sel">
                             <div class="m-modal-list-sel-list-title">출력(${gCount})</div>
                             <div class="m-modal-list-sel-list custom-scrollbar">
@@ -372,6 +429,10 @@ const BroadcastMain = class broadcast_main {
                         <div class="m-modal-list-btn">
                             <div id="hide_media_modal" class="m-modal-list-btn-close">방송 종료</div>
                         </div>
+                    </div>
+                    <div class="m-modal-list" style="display: flex;">
+                        ${szVolMain}
+                        ${szVolTX}
                     </div>
                 </div>
             </div>
@@ -386,6 +447,21 @@ const BroadcastMain = class broadcast_main {
         for (let epf of evtPairList) {
             gDOM(epf.id).addEventListener("click", epf.fn);
         }
+        
+        this.volumeSliders = new Array();        
+        this.volumeSliders.push(new PentaVolumeSlide('main_vol_slide_0', 0, 1));        
+        this.volumeSliders.push(new PentaVolumeSlide('main_vol_slide_1', 0, 1));        
+
+        this.volumeSliders[0].Show();
+        this.volumeSliders[0].SetValue(0);
+        this.volumeSliders[0].SetOnChangeCallback(this._onVolumeSet.bind(this, 0));
+        this.volumeSliders[1].Show();
+        this.volumeSliders[1].SetValue(0);
+        this.volumeSliders[1].SetOnChangeCallback(this._onVolumeSet.bind(this, 1));
+
+        this.volumeSlideType = 10;
+        this._getMainboardVolume();
+        this._getHardwareInfo();        
     }
 
     _showModalLayout3() {
@@ -408,10 +484,24 @@ const BroadcastMain = class broadcast_main {
 
         if (dom != null) inputName = dom.innerText;        
 
+        let txNick = "ERROR";
+        if (this.broadcast.txch != null) {
+            let myTX = this.selectedMtx.getMyTXDev();
+            for (let txc of myTX.tx_channels) {
+                if (txc.idx == this.broadcast.txch) {
+                    txNick = txc.nick_name;
+                    this.volumeSlideType = txc.order + 1;
+                    break;
+                }
+            }
+        }
+        
+        let szVolTX = this._makeVolumeLayout(txNick, this.volumeSlideType, 120);
+
         html = `
             <div id="mic_modal" class="i-modal">
-                <div class="i-modal-content">
-                    <div class="i-modal-list">
+                <div class="i-modal-content" style="width: 404px;">
+                    <div class="i-modal-list" style="width: 244px;">
                         <div class="i-modal-list-title">
                             <div class="i-modal-list-title-main">방송</div>
                             <div class="i-modal-list-title-sub">입력 : ${inputName}</div>
@@ -431,6 +521,9 @@ const BroadcastMain = class broadcast_main {
                             <div id="hide_mic_modal" class="i-modal-list-btn-close">방송 종료</div>
                         </div>
                     </div>
+                    <div class="i-modal-list" style="width: 160px;">
+                        ${szVolTX}
+                    </div>
                 </div>
             </div>
         `;
@@ -442,6 +535,14 @@ const BroadcastMain = class broadcast_main {
         for (let epf of evtPairList) {
             gDOM(epf.id).addEventListener("click", epf.fn);
         }
+
+        this.volumeSliders = new Array();        
+        this.volumeSliders.push(new PentaVolumeSlide(`main_vol_slide_${this.volumeSlideType}`, 0, 1));
+
+        this.volumeSliders[0].Show();
+        this.volumeSliders[0].SetValue(0);
+        this.volumeSliders[0].SetOnChangeCallback(this._onVolumeSet.bind(this, this.volumeSlideType));
+        this._getHardwareInfo();        
     }
 
     _setTempData(szDomID, bIsLocal, mediaObj) {
@@ -1710,33 +1811,197 @@ const BroadcastMain = class broadcast_main {
     }        
   }
 
-  _callControlSpeaker() {    
-    if (this.controlESPK_List.length > 0) {
-        //console.log("Call control speaker!!!!");
-        let dat = this.controlESPK_List[0];      
-        let payload = { job: dat };    
-        this.controlESPK_List.splice(0, 1);      
-        this.selectedMtx.rest_call(
-            "control_each_speaker",
-            payload,
-            null,
-            function (bRes, jsRecv, callParam) {
-                if (bRes != true || jsRecv.res != true) {
-                    showWaitModal(false);
-                    this._showAlertModal("오류", "스피커 제어 실패.");
-                    return;
-                }
-                if (this.controlESPK_List.length > 0) {
-                    this._callControlSpeaker();                
-                }
-                else showWaitModal(false);
-            }.bind(this)
-        );    
+    _callControlSpeaker() {    
+        if (this.controlESPK_List.length > 0) {
+            //console.log("Call control speaker!!!!");
+            let dat = this.controlESPK_List[0];      
+            let payload = { job: dat };    
+            this.controlESPK_List.splice(0, 1);      
+            this.selectedMtx.rest_call(
+                "control_each_speaker",
+                payload,
+                null,
+                function (bRes, jsRecv, callParam) {
+                    if (bRes != true || jsRecv.res != true) {
+                        showWaitModal(false);
+                        this._showAlertModal("오류", "스피커 제어 실패.");
+                        return;
+                    }
+                    if (this.controlESPK_List.length > 0) {
+                        this._callControlSpeaker();                
+                    }
+                    else showWaitModal(false);
+                }.bind(this)
+            );    
 
-        return true;
+            return true;
+        }
+        return false;
+    }  
+
+    _makeVolumeLayout(szName, idN, nSize) {        
+        let o8px = parseInt(8 * nSize / 200);
+        let o12px = parseInt(12 * nSize / 200);
+        let o14px = parseInt(14 * nSize / 200);
+        let o18px = parseInt(18 * nSize / 200);
+        let o20px = parseInt(20 * nSize / 200);
+        let o32px = parseInt(32 * nSize / 200);
+        let o50px = parseInt(50 * nSize / 200);
+        let o60px = parseInt(60 * nSize / 200);
+        let o100px = parseInt(100 * nSize / 200);
+
+        let szLHBar = "";
+        for(let i = 0; i < 11; i++) {
+            szLHBar += `
+                <div class="border-b-4 border-white"></div>
+                <div class="h-full"></div>
+            `;
+        }
+        szLHBar += `<div class="border-b-4 border-white"></div>`;
+
+        let res = `
+        <div class="w-[${nSize}px] h-full mx-[${o8px}px]">
+            <div class="flex justify-center items-center h-full bg-[#232326] rounded-[${o8px}px] px-[${o20px}px] pt-[${o20px}px] pb-[${o50px}px]">
+                <div class="h-full w-[${o32px}px] mr-[${o12px}px]">
+                    <div class="h-[${o32px}px]">
+                        <div class="truncate w-[${o100px}px] text-[${o18px}px]">${szName}</div>
+                    </div>
+                    <div class="flex flex-col justify-between h-full">
+                        ${szLHBar}
+                    </div>
+                </div>
+                <div class="h-full w-[${o60px}px]">
+                    <div class="h-[${o32px}px]"></div>
+                    <div class="h-full">
+                        <div class="w-full h-full" id="main_vol_slide_${idN}"></div>
+                    </div>
+                </div>
+                <div class="h-full w-[${o32px}px] ml-[${o12px}px]">
+                    <div id="vm_attr_cur_${idN}" class="h-[${o32px}px]"></div>
+                    <div class="flex flex-col justify-between h-full">
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">90</div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="h-full">
+                            <div class="flex justify-between h-full">
+                                <div class="flex-shrink-0 w-4/12">
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="h-1/5"></div>
+                                </div>
+                                <div class="flex items-end w-6/12 text-[${o14px}px]">80</div>
+                            </div>
+                        </div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="h-full">
+                            <div class="flex justify-between h-full">
+                                <div class="flex-shrink-0 w-4/12">
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="border-b border-gray-400 h-1/5"></div>
+                                    <div class="h-1/5"></div>
+                                </div>
+                                <div class="flex items-end w-6/12 text-[${o14px}px]">70</div>
+                            </div>
+                        </div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">60</div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">50</div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">40</div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">30</div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">20</div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">10</div>
+                        <div class="border-b-4 border-white"></div>
+                        <div class="flex justify-end items-end text-[${o14px}px] h-full">0</div>
+                        <div class="border-b-4 border-white"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+
+        return res;
     }
-    return false;
-  }  
+
+    _onVolumeSet(idx) {
+        let cVolume = document.querySelector(`#main_vol_slide_${idx}_sld_btn > div`).innerText;        
+        if (idx == 0) {
+            this._setMainboardVolume(parseInt(cVolume));
+        }
+        else {
+            let vol = [];            
+            vol.push({ channel: idx - 1, volume: mainCHVolConversion(false, cVolume) });
+            console.log("Set Volume:\n" + JSON.stringify(vol));
+
+            let reqV = { act: "SET_HARDWARE_INFO", payload: { type: "adc_volume", value: vol } };        
+            this.funcCallNative(JSON.stringify(reqV));
+        }        
+    }
+
+    _getHardwareInfo() {
+        let reqV = { act: "GET_HARDWARE_INFO", payload: "adc_volume" };
+        this.funcCallNative(JSON.stringify(reqV));
+    }
+
+    _getMainboardVolume() {
+        let cmdPayload = { cmd: "amixer get Master", cmd_id: 100, need_result: true };
+        let jsv = { act: "SYS_RUN_COMMAND", payload: cmdPayload };
+        this.funcCallNative(JSON.stringify(jsv));
+    }
+
+    _setMainboardVolume(iVol) {
+        let cmdPayload = { cmd: `amixer set Master ${iVol}%`, cmd_id: 101, need_result: false };
+        let jsv = { act: "SYS_RUN_COMMAND", payload: cmdPayload };
+        this.funcCallNative(JSON.stringify(jsv));
+    }
+    
+    _parseLinuxVolume(szRes) {
+        let szPer = parseLinuxVolume(szRes);
+        let dom = document.querySelector(`#main_vol_slide_0_sld_btn > div`);
+        if (dom == null) {
+            console.log("ERROR: Channel for volume is not exist");
+            return;
+        }
+        dom.innerText = szPer;        
+        this.volumeSliders[0].SetValue(parseInt(szPer) / 100);
+    }
+
+    _setChannelVolume(volumes) {
+        //volumes = [{channel: 0, volume: 0}, ... ]
+        let dom = null;
+        let tCh = 0;
+        let tVS = this.volumeSliders[0];
+        if (this.volumeSlideType < 1) return;
+
+        if (this.volumeSlideType > 10) {
+            if(this.volumeSliders.length < 2) return;
+            tCh = 0;
+            tVS = this.volumeSliders[1];            
+            dom = document.querySelector(`#main_vol_slide_1_sld_btn > div`);
+        }
+        else {
+            tCh = this.volumeSlideType - 1;
+            tVS = this.volumeSliders[0];            
+            dom = document.querySelector(`#main_vol_slide_${this.volumeSlideType}_sld_btn > div`);
+        }
+
+        if(dom == null) return;
+        for (let vol of volumes) {
+            if (vol.channel != tCh) continue;
+            dom.innerText = parseInt(vol.volume * 100).toString();
+            tVS.SetValue(vol.volume);
+        }
+    }
+    
+
 };
 
 export { BroadcastMain };
