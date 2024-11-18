@@ -570,7 +570,7 @@ void MainLogic::runSystemCommand(Json::Value jsPayload) {
         if (jsPayload.isMember("need_result")) {
             if (jsPayload["need_result"].asBool()) bNeedReturn = true;
         }
-        szCmdT = new char[DARK_MAX_PATH];
+        szCmdT = new char[DARK_MAXPATH];
         if (bNeedReturn) DARK_SNPRINTF2(szCmdT, DARK_MAXPATH, "%s > %s/shell_res.txt", jsPayload["cmd"].asCString(), m_config.getBasePath());
         else DARK_SNPRINTF2(szCmdT, DARK_MAXPATH, "%s", jsPayload["cmd"].asCString());        
         
