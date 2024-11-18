@@ -81,6 +81,7 @@ public:
 	~DarkString();
 
 	bool SetString(const char *szString);
+	static int32_t base64_encode(char *in, int32_t in_size, char *out, int32_t out_size);
 
 	char *m_szString;
 	uint32_t m_uiSize;

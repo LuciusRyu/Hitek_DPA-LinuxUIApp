@@ -579,10 +579,14 @@ void MainLogic::runSystemCommand(Json::Value jsPayload) {
             FILE* fp = NULL;
             DARK_SNPRINTF2(szCmdT, DARK_MAXPATH, "%s/shell_res.txt", m_config.getBasePath());
             if (DARKPIF_fopen(&fp, szCmdT, "r") == true) {
+                char *szB64 = new char[DARK_MAXPATH * 2];
+                memset(szB64, 0, DARK_MAXPATH * 2);
                 memset(szCmdT, 0, DARK_MAXPATH);
                 fread(szCmdT, 1, DARK_MAXPATH, fp);
                 fclose(fp);
-                jsP["system_result"] = szCmdT;
+                DarkString::base64_encode(szCmdT, strlen(szCmdT), szB64, DARK_MAXPATH * 2);
+                jsP["system_result"] = szB64;
+                delete[] szB64;
             }
             else jsP["system_result"] = "NONE";
         }

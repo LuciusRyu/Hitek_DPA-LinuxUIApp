@@ -209,3 +209,44 @@ bool DarkString::SetString(const char *szString)
 
 	return true;
 }
+
+int32_t DarkString::base64_encode(char *in, int32_t in_size, char *out, int32_t out_size) {
+	static const char base64code_ascii[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+	int32_t i = 0;
+	int32_t o = 0;
+	int32_t len;
+
+	if (!in || !out) return 0;
+
+	len = (strlen(in) + 2) / 3 * 4;
+	if (len > out_size) return 0;
+
+	while (i < in_size - 2 && o + 4 <= out_size)
+	{
+		out[o++] = base64code_ascii[(in[i] >> 2) & 0x3F];
+		out[o++] = base64code_ascii[((in[i] & 0x3) << 4) | ((int)(in[i + 1] & 0xF0) >> 4)];
+		out[o++] = base64code_ascii[((in[i + 1] & 0xF) << 2) | ((int)(in[i + 2] & 0xC0) >> 6)];
+		out[o++] = base64code_ascii[in[i + 2] & 0x3F];
+		i += 3;
+	}
+
+	if (i < in_size)
+	{
+		out[o++] = base64code_ascii[(in[i] >> 2) & 0x3F];
+		if (i == (in_size - 1))
+		{
+			out[o++] = base64code_ascii[((in[i] & 0x3) << 4)];
+			out[o++] = '='; // padding
+		}
+		else
+		{
+			out[o++] = base64code_ascii[((in[i] & 0x3) << 4) | ((int)(in[i + 1] & 0xF0) >> 4)];
+			out[o++] = base64code_ascii[((in[i + 1] & 0xF) << 2)];
+		}
+
+		out[o++] = '='; // padding
+	}
+
+	return o;
+}
