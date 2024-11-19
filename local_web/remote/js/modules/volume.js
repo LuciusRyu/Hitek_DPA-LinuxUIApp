@@ -222,15 +222,16 @@ const VolumeMain = class volume_main {
 
     _setChannelAttr(attrs) {
         //attrs = [{channel: 0, attribute: 0}, ... ]
+        //console.log("Set ATTR:\n" + JSON.stringify(attrs));
         let dom;
         for (let attr of attrs) {
-            dom = gDOM("vm_attr_cur_" + attr.channel);
+            dom = gDOM("vm_attr_cur_" + (attr.channel + 1));
             if (dom == null) {
                 console.log("ERROR: Channel for attr is not exist: " + attr.channel);
                 continue;
             }
             // dom.innerText = " " + attr.attribute;
-            if (attr.channel > 0) {
+            if (attr.attribute > 0) {
                 dom.innerHTML = `<div class="w-full text-center p-[5px] rounded-[8px] text-[12px] bg-[#1573d0]">AGC</div>`;
             } else {
                 dom.innerHTML = ``;

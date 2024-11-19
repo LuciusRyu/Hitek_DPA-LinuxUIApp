@@ -171,6 +171,8 @@ function parseLinuxVolume(szRes) {
     return szPer;
 }
 
+/* 
+//PGA Gain 버전
 function mainCHVolConversion(bToPercent, tVal) {
     //PGA Gain 0에서 120단계로 증폭, 0.5db단위
     //120 ~ 127은 동일
@@ -196,4 +198,32 @@ function mainCHVolConversion(bToPercent, tVal) {
 
     return res;
 }
+*/
+
+//ADC Control register 버전
+function mainCHVolConversion(bToPercent, tVal) {
+    //0에서 8단계로 감소, 1.5db단위, Mute 1 추가 9단계
+    //1111(0xF)면 연결끊기
+    let res = parseInt(tVal);
+
+    if (bToPercent === true) {
+        res = (res >> 3) & 0x0F;
+        if (res == 0x0F) res = 0;
+        if (res > 8) res = 8;
+        
+        res = parseInt(100 * (9 - res) / 9, 10);
+        if (res > 100) res = 100;
+        //console.log("Vol to Percent:" + tVal + "=" + res);
+    } else {
+        if (res <= 0) res = 0x0F;
+        else {
+            res = parseInt(9 * (100 - res) / 100, 10);        
+            if (res > 8) res = 8;
+        }
+        res = 0x84 | (res << 3);
+    }
+
+    return res;
+}
+
 

@@ -1981,7 +1981,7 @@ const BroadcastMain = class broadcast_main {
         let tVS = this.volumeSliders[0];
         if (this.volumeSlideType < 1) return;
 
-        if (this.volumeSlideType > 10) {
+        if (this.volumeSlideType >= 10) {
             if(this.volumeSliders.length < 2) return;
             tCh = 0;
             tVS = this.volumeSliders[1];            
