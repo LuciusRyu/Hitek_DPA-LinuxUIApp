@@ -170,21 +170,23 @@ function parseLinuxVolume(szRes) {
     //console.log("Linux volume = " + szPer);
     return szPer;
 }
-
-/* 
+ 
 //PGA Gain 버전
 function mainCHVolConversion(bToPercent, tVal) {
     //PGA Gain 0에서 120단계로 증폭, 0.5db단위
     //120 ~ 127은 동일
     //최상위 비트는 Mute
+    
     let res = parseInt(tVal);
+    //2024-11-20: 30%이상은 너무 크다, 그래서 36(120 x 0.3)까지만 조정
+    const regMax = 36; //120;
 
     if (bToPercent === true) {
         if (res < 0) res = 0;
         if (res > 127) res = 0;
-        else if (res > 120) res = 120;
+        else if (res > regMax) res = regMax;
         
-        res = parseInt((100 * res) / 120, 10);
+        res = parseInt((100 * res) / regMax, 10);
         if (res > 100) res = 100;
     } else {
         if (res <= 0) {
@@ -192,14 +194,15 @@ function mainCHVolConversion(bToPercent, tVal) {
         }
         else {
             if (res > 100) res = 100;
-            res = parseInt((120 * res) / 100);
+            res = parseInt((regMax * res) / 100);
         }
     }
 
     return res;
 }
-*/
 
+
+/*
 //ADC Control register 버전
 function mainCHVolConversion(bToPercent, tVal) {
     //0에서 8단계로 감소, 1.5db단위, Mute 1 추가 9단계
@@ -225,5 +228,5 @@ function mainCHVolConversion(bToPercent, tVal) {
 
     return res;
 }
-
+*/
 

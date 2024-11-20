@@ -13,7 +13,7 @@
 #include "JSON_CPP/json/json.h"
 #include "Information_Parser.h"
 
-#define HITEK_UI_VER	"1.1"
+#define HITEK_UI_VER	"1.2"
 
 #define DARK_MAXPATH    1024
 #define DARK_SHORTSTR_S 64
