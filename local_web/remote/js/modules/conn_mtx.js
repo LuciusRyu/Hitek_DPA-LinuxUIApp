@@ -373,9 +373,11 @@ const MainTXConnector = class main_tx_connector {
         let targetConf = null;
         let preList = this.uart_list;
         this.uart_list = new Array();
-        for (i = 0; i < this.configList.length; i++) {
+        //console.log("_refreshUARTList");
+        for (i = 0; i < this.configList.length; i++) {            
             if (this.configList[i].code != 'UART_PORT') continue;
-            if (!(this.configList[i].i_value == 1 || this.configList[i].i_value == 2)) continue;
+            //console.log("idx = " + this.configList[i].idx + ", val=" + this.configList[i].i_value);
+            //if (!(this.configList[i].i_value == 1 || this.configList[i].i_value == 2)) continue;
 
             targetConf = this.configList[i];
 
@@ -392,11 +394,11 @@ const MainTXConnector = class main_tx_connector {
             let tGroups = new Array();
             if (objExist != null) tGroups = objExist.emrGroups;
 
-            for (i2 = 0; i2 < this.emrg_list.length; i2++) {
-                if (targetConf.i_value != this.emrg_list[i2].proto_type) continue; //proto_type 1 = UART, 2 = GPIO
-                tGroups.push(this.emrg_list[i2]);
+            for (let ee of this.emrg_list) {
+                if (targetConf.i_value != ee.proto_port) continue;
+                tGroups.push(ee);
             }
-
+        
             if (objExist == null) {      
                 let tState = 'DISCONNECTED';
                 if (preList != null) {
@@ -414,6 +416,7 @@ const MainTXConnector = class main_tx_connector {
                     name: targetConf.name,
                     emrGroups: tGroups,
                     port: targetConf.i_value,
+                    info: targetConf.str_value,
                 });
             }
         }
@@ -542,7 +545,12 @@ const MainTXConnector = class main_tx_connector {
                 console.log("Get Media list failed..." + js.error);
                 return;
             }            
-            this.media_list = jsRecv.payload.list;
+            this.media_list = new Array();
+            for(let em of jsRecv.payload.list) {
+                let spl = em.mime.split('/');
+                if (spl[0] != 'audio') continue;
+                this.media_list.push(em);
+            }
             this.media_list.sort(this._sortByB64Title);
             this._checkAndReport();
             if (callParam == true) {
@@ -740,6 +748,7 @@ const MainTXConnector = class main_tx_connector {
         } 
         else if(jsV.act == 'update_notify') {
             let szTarget = jsV.payload.target;
+            //console.log("update_notify: " + szTarget);
             if (szTarget == 'device') { //장치 상태가 변경됨.. 걍 업뎃
                 this._rest_getDevList(true);                
             }

@@ -172,12 +172,18 @@ const BroadcastMain = class broadcast_main {
             if (iLast < 0) iLast = mtxList[0].uniq_seq;
             html += `<ul class="flex flex-row h-full">`;
             for (i = 0; i < mtxList.length; i++) {
+                let mtxNick = mtxList[i].mtxInfo.id;
+                let mtxD = mtxList[i].getMainTXDev();
+                if (mtxD != null) {
+                    if (mtxD.nick_name != "NONE") mtxNick = mtxD.nick_name;
+                }                                 
+        
                 let stlStr = `background-color: ${COLOR_MULTITAB_NOR};`;
                 let clsStr = "flex justify-center items-center h-full cursor-pointer px-[20px] first:rounded-tl-lg last:rounded-tr-lg";
                 if (mtxList[i].uniq_seq == iLast) stlStr = `background-color: ${COLOR_MULTITAB_SEL};`;                
                 html += `
                     <li class="${clsStr}" id='bm_mtxlist_${mtxList[i].uniq_seq}' style="${stlStr}">
-                        ${mtxList[i].mtxInfo.id}
+                        ${mtxNick}
                     </li>
                 `;
             }
@@ -241,12 +247,12 @@ const BroadcastMain = class broadcast_main {
                         <div class="relative transform overflow-hidden rounded-[8px] shadow-xl transition-all w-[400px] h-[520px]">
                             <div class="flex items-center flex-col w-full h-full bg-[#343434] px-[12px] pt-[12px]">
                                 <div class="flex justify-between items-center w-full h-[40px]">
-                                    <div class="cursor-pointer basis-3/12" id="hideSoundModalBtn">
+                                    <div class="cursor-pointer basis-6/12" id="hideSoundModalBtn">
                                         <img src="../assets/images/closeOutline.png" />
                                     </div>
                                     <div class="text-lg text-center basis-6/12">음원</div>
                                     <div class="text-right basis-3/12">
-                                        <span class="text-sm cursor-pointer" id="clusterAddBtn">확인</span>
+                                        <span class="text-lg cursor-pointer" id="clusterAddBtn">확인</span>
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center w-full h-[44px] border-b">
@@ -930,26 +936,25 @@ const BroadcastMain = class broadcast_main {
             slide.classList.remove("active");
         }
 
+        if (slides == null || slides.length < 1) return;        
         addActive(slides[0]);
-        this.slideInterval = setInterval(function () {
-            for (let i = 0; i < slides.length; i++) {
-                if (i + 1 == slides.length) {
-                    addActive(slides[0]);
-                    setTimeout(removeActive, 350, slides[i]);
-                    break;
+        if (slides.length > 1) {
+            this.slideInterval = setInterval(function () {
+                for (let i = 0; i < slides.length; i++) {                    
+                    if (slides[i].classList.contains("active")) {
+                        setTimeout(removeActive, 350, slides[i]);
+                        if (i + 1 == slides.length) addActive(slides[0]);
+                        else addActive(slides[i + 1]);
+                        break;
+                    }
                 }
-                if (slides[i].classList.contains("active")) {
-                    setTimeout(removeActive, 350, slides[i]);
-                    addActive(slides[i + 1]);
-                    break;
-                }
-            }
-        }, 3000);
+            }, 3000);
+        }
     }
 
     _refreshMTX(mtxConn) {
         let mtx = mtxConn.getMainTXDev();
-        let uartState = this.generateUARTState(mtxConn);
+        let uartStates = this.generateUARTState(mtxConn);
         let brdState = this.generateBRDState(mtxConn);
         let epf = null;
 
@@ -983,6 +988,30 @@ const BroadcastMain = class broadcast_main {
                 </div>
         `;
 
+        let szEmrList = '';
+        for (let ee of uartStates) {
+            szEmrList += `
+                <div class="carousel-item flex items-center justify-center flex-col bg-[#343437] rounded-[8px]">
+                    <div class="flex items-center justify-center text-[14px]">${ee.devName}</div>
+                    <div class="flex items-center justify-center text-[18px]">${ee.devState}</div>
+                </div>
+            `;
+        }
+
+        szState += `
+            <div class="rounded-[8px] p-[12px] bg-[#232326]">
+                <div class="flex items-center justify-center">
+                    <span class="text-[18px] font-bold">화재 수신기</span>
+                </div>
+                <div class="flex flex-row justify-center mt-[8px]">
+                    <div class="carousel w-[176px] h-[68px]">
+                        ${szEmrList}
+                    </div>
+                </div>
+            </div>
+        `;
+
+/*
         // 방송이 1개일때와 2개일때는 html 코드가 다르다
         if (uartState.emrList.length === 1) {
             // 긴급방송이 1개만 존재하는 경우
@@ -1039,7 +1068,7 @@ const BroadcastMain = class broadcast_main {
                 </div>
             `;
         }
-
+*/
         szState += `
             <div class="h-[380px] rounded-[8px] p-[12px] bg-[#232326]">
                 <div class="flex items-center justify-center">
@@ -1200,8 +1229,7 @@ const BroadcastMain = class broadcast_main {
                 }
             }
         }
-
-        if (this.broadcast.txch === myTX.tx_channels[0].idx) onMIC = "custom-click";
+        else if (this.broadcast.txch === myTX.tx_channels[0].idx) onMIC = "custom-click";
 
         let scTXCMedia = `
             <aside class="flex-none w-[160px]">
@@ -1288,18 +1316,19 @@ const BroadcastMain = class broadcast_main {
         `;
 
         gDOM("bm_cts_main").innerHTML = html;
-        if (uartState.emrList.length > 1) this._startSlice();
+        this._startSlice();
         for (let epf of evtPairList) {
             gDOM(epf.id).addEventListener("click", epf.fn);
         }
     }
 
+    /*
     generateUARTState(mtxConn) {
         let i, i2;
         let tgrps = null;
-
+        
         let res = { devName: "", devState: "", emrList: [] };
-
+        
         let tUart = null;
         for (i = 0; i < mtxConn.uart_list.length; i++) {
             if (mtxConn.uart_list[i].port == 1) {
@@ -1334,6 +1363,32 @@ const BroadcastMain = class broadcast_main {
 
         return res;
     }
+    */
+
+    generateUARTState(mtxConn) {
+        let res = new Array();        
+        for(let eu of mtxConn.uart_list) {
+            let cres = { devName: eu.name, devState: "정상", emrList: [] };
+                           
+            let spl = eu.info.split('__');
+                            
+            if (spl[0] != 'GPIO') { //2 = GPIO = 항상 정상
+                if (eu.state == "DISCONNECTED") cres.devState = "연결 안됨";
+                else if (eu.state == "SIGNAL_RELAY_DIS") cres.devState = "연동 정지";
+            }                        
+
+            let tName = "";
+            for( let ee of eu.emrGroups) {
+                if (ee.proto_port == 1) tName = "화재 방송";
+                else tName = "긴급 방송";
+
+                cres.emrList.push({ type: tName, title: ee.name });
+            }                         
+            res.push(cres);               
+        }
+        return res;
+    }
+
 
     generateBRDState(mtxConn) {
         let main_count = 0;
@@ -1725,7 +1780,7 @@ const BroadcastMain = class broadcast_main {
     _selectMIC(mtxConn) {
         let myTX = mtxConn.getMyTXDev();
 
-        if (this.broadcast.txch === myTX.tx_channels[0].idx) {
+        if (this._isBrdMedia() != true && this.broadcast.txch === myTX.tx_channels[0].idx) {
             gDOM("select-mic").classList.remove("custom-click");
             this.broadcast.txch = 0;
         }
