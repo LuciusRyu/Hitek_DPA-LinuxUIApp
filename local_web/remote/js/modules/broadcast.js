@@ -111,7 +111,8 @@ const BroadcastMain = class broadcast_main {
                 }
             }
             if (!bObjInList) {
-                console.error("변화된 객체가 현재 목록에 없음");
+                //이거 자주 발생
+                //console.error("변화된 객체가 현재 목록에 없음");
                 return;
             }
 
@@ -627,7 +628,7 @@ const BroadcastMain = class broadcast_main {
         }
         if (tmtx == null) return;
         //console.log("_selectMTX: " + this.lastSelection.uuid + ", " + tmtx.mtxInfo.uuid);
-        if (!bForceRefresh && this.lastSelection.uuid == tmtx.mtxInfo.uuid) return;
+        if (!bForceRefresh && this.lastSelection.uuid == tmtx.mtxInfo.uuid) return;        
 
         let dom = gDOM(this.lastSelection.dom_id);
         if (dom != null) dom.style.backgroundColor = COLOR_MULTITAB_NOR;
@@ -636,6 +637,8 @@ const BroadcastMain = class broadcast_main {
         this.lastSelection.dom_id = "bm_mtxlist_" + uniq_seq;
 
         gDOM(this.lastSelection.dom_id).style.backgroundColor = COLOR_MULTITAB_SEL;
+
+        this.connector.selectedMtx = tmtx;
 
         this._checkLocalChime(tmtx);
         this._refreshMTX(tmtx);
@@ -991,9 +994,9 @@ const BroadcastMain = class broadcast_main {
         let szEmrList = '';
         for (let ee of uartStates) {
             szEmrList += `
-                <div class="carousel-item flex items-center justify-center flex-col bg-[#343437] rounded-[8px]">
-                    <div class="flex items-center justify-center text-[14px]">${ee.devName}</div>
-                    <div class="flex items-center justify-center text-[18px]">${ee.devState}</div>
+                <div class="carousel-item flex items-center justify-center flex-col bg-[${ee.bgColor}] rounded-[8px]">
+                    <div class="flex items-center justify-center text-[14px]">${ee.name}</div>
+                    <div class="flex items-center justify-center text-[18px] text-[${ee.txtColor}]">${ee.state}</div>
                 </div>
             `;
         }
@@ -1011,64 +1014,6 @@ const BroadcastMain = class broadcast_main {
             </div>
         `;
 
-/*
-        // 방송이 1개일때와 2개일때는 html 코드가 다르다
-        if (uartState.emrList.length === 1) {
-            // 긴급방송이 1개만 존재하는 경우
-            szState += `
-                <div class="rounded-[8px] p-[12px] bg-[#232326]">
-                    <div class="flex items-center justify-center">
-                        <span class="text-[18px] font-bold">화재 수신기</span>
-                    </div>
-                    <div class="flex flex-row justify-center mt-[8px]">
-                        <div class="w-[176px] h-[68px] flex items-center justify-center flex-col bg-[#343437] rounded-[8px]">
-                            <div class="text-[14px]">${uartState.emrList[0].type}</div>
-                            <div class="text-[18px]">${uartState.emrList[0].title}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else if (uartState.emrList.length > 1) {
-            // 긴급방송이 2개이상 존재하는 경우
-            szState += `
-                <div class="rounded-[8px] p-[12px] bg-[#232326]">
-                    <div class="flex items-center justify-center">
-                        <span class="text-[18px] font-bold">화재 수신기</span>
-                    </div>
-                    <div class="flex flex-row justify-center mt-[8px]">
-                        <div class="carousel w-[176px] h-[68px]">
-            `;
-
-            for (let i = 0; i < uartState.emrList.length; i++) {
-                szState += `
-                    <div class="carousel-item flex items-center justify-center flex-col bg-[#343437] rounded-[8px]">
-                        <div class="flex items-center justify-center text-[14px]">${uartState.emrList[i].type}</div>
-                        <div class="flex items-center justify-center text-[18px]">${uartState.emrList[i].title}</div>
-                    </div>
-                `;
-            }
-            szState += `
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else {
-            // 긴급방송이 없는 경우
-            szState += `
-                <div class="rounded-[8px] p-[12px] bg-[#232326]">
-                    <div class="flex items-center justify-center">
-                        <span class="text-[18px] font-bold">화재 수신기</span>
-                    </div>
-                    <div class="flex flex-row justify-center mt-[8px]">
-                        <div class="w-[176px] h-[68px] flex items-center justify-center flex-col bg-[#343437] rounded-[8px]">
-                            <div class="text-[14px]">${uartState.devName}</div>
-                            <div class="text-[18px]">${uartState.devState}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-*/
         szState += `
             <div class="h-[380px] rounded-[8px] p-[12px] bg-[#232326]">
                 <div class="flex items-center justify-center">
@@ -1234,7 +1179,7 @@ const BroadcastMain = class broadcast_main {
         let scTXCMedia = `
             <aside class="flex-none w-[160px]">
                 <div class="flex justify-center items-center h-[44px] mb-[8px] rounded-[8px] text-[18px] font-bold">입력</div>
-                    <div class="h-[calc(100%-44px-8px)] px-[8px] bg-[#232326] rounded-[8px]">
+                    <div class="h-[calc(100%-44px-8px)] px-[8px] bg-[#232326] rounded-[8px] overflow-auto custom-scrollbar">
                         <div class="pt-[8px]">
                             <button
                                 id="show-sound-modal-btn"
@@ -1322,69 +1267,37 @@ const BroadcastMain = class broadcast_main {
         }
     }
 
-    /*
     generateUARTState(mtxConn) {
-        let i, i2;
-        let tgrps = null;
-        
-        let res = { devName: "", devState: "", emrList: [] };
-        
-        let tUart = null;
-        for (i = 0; i < mtxConn.uart_list.length; i++) {
-            if (mtxConn.uart_list[i].port == 1) {
-                tUart = mtxConn.uart_list[i];
-                break;
-            }
-        }
-        if (tUart == null) {
-            console.error("ERROR: RefreshUARTListUI - No UART Info..");
-            return res;
-        }
-
-        res.devName = tUart.name;
-        if (tUart.state == "DISCONNECTED") res.devState = "연결 안됨";
-        else if (tUart.state == "SIGNAL_RELAY_DIS") res.devState = "연동 정지";
-        else res.devState = "정상";
-
-        let tName = "";
-
-        for (i = 0; i < mtxConn.uart_list.length; i++) {
-            tgrps = mtxConn.uart_list[i].emrGroups;
-            let tgrp = null;
-            for (i2 = 0; i2 < tgrps.length; i2++) {
-                tgrp = tgrps[i2];
-                if (!(tgrp.extra1 == "AUTO" || tgrp.extra1 == "MANUAL")) continue;
-                if (tgrp.proto_port == 1) tName = "화재 방송";
-                else tName = "긴급 방송";
-
-                res.emrList.push({ type: tName, title: tgrp.name });
-            }
-        }
-
-        return res;
-    }
-    */
-
-    generateUARTState(mtxConn) {
-        let res = new Array();        
+        let res = new Array();                
         for(let eu of mtxConn.uart_list) {
-            let cres = { devName: eu.name, devState: "정상", emrList: [] };
-                           
-            let spl = eu.info.split('__');
+            let iCnt = 0;
+            for(let eg of eu.emrGroups) {
+                if (eg.extra1 == 'AUTO' || eg.extra1 == 'MANUAL') {        
+                    let tArr = {name: eu.name, state: eg.name, txtColor: '#FFFFFF', bgColor: '#FF7F00'};
+                    if (eu.port == 1) {
+                        tArr.bgColor = '#FF0000';
+                    }
+                    res.push(tArr);
+                    iCnt++;
+                }
+            }
+
+            if (iCnt < 1) {
+                let tArr = {name: eu.name, state: '정상', txtColor: '#FFFFFF', bgColor: '#343437'};
+                let spl = eu.info.split('__');
                             
-            if (spl[0] != 'GPIO') { //2 = GPIO = 항상 정상
-                if (eu.state == "DISCONNECTED") cres.devState = "연결 안됨";
-                else if (eu.state == "SIGNAL_RELAY_DIS") cres.devState = "연동 정지";
-            }                        
-
-            let tName = "";
-            for( let ee of eu.emrGroups) {
-                if (ee.proto_port == 1) tName = "화재 방송";
-                else tName = "긴급 방송";
-
-                cres.emrList.push({ type: tName, title: ee.name });
-            }                         
-            res.push(cres);               
+                if (spl[0] != 'GPIO') { //2 = GPIO = 항상 정상
+                    if (eu.state == "DISCONNECTED") {
+                        tArr.state = "연결 안됨";
+                        tArr.txtColor = '#FF0000';
+                    }
+                    else if (eu.state == "SIGNAL_RELAY_DIS") {
+                        tArr.state = "연동 정지";
+                        tArr.txtColor = '#00FF00';
+                    }                    
+                }    
+                res.push(tArr);                       
+            }
         }
         return res;
     }
@@ -1774,6 +1687,14 @@ const BroadcastMain = class broadcast_main {
             console.log("GPIO4: " + JSON.stringify(jsGpio.payload));
             this.funcCallNative(JSON.stringify(jsGpio));
             this.broadcast.gpio_signals = [];
+        }
+        //방송이 종료되면 LRX가 다 꺼지기 때문에 출력 선택을 자동으로 해제한다
+        if (this.selectedMtx != null) {
+            for(let eg of this.broadcast.groups) {
+                this.selectedMtx.onGroupSelect(eg, false);
+            }
+            this.broadcast.groups = [];
+            this._refreshMTX(this.selectedMtx);
         }
     }
 

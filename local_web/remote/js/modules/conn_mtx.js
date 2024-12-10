@@ -31,6 +31,9 @@ const MainTXConnector = class main_tx_connector {
         this.selectedSpeakers = [];
         this.selectedGroups = [];
         this.enabledSpeakers = [];
+
+        this.monitoringList = new Array();
+        this.monitoringList.push({user: -1, bStart: false, tx_CH_idx: 0, rx_DEV_idx: 0, bForAMP: false, waitForDISP: 0});
     }
 
     checkID(mtxInfo) {
@@ -345,7 +348,33 @@ const MainTXConnector = class main_tx_connector {
         }
         return null;
     }
+
+    checkChannelInMonitoring(chIdx) {
+        for(let em of this.monitoringList) {
+            if (em.user == -1) continue; //내꺼 빼고...
+            if (chIdx == em.tx_CH_idx) return true;
+        }
+        return false;
+    }    
     
+    checkAMPMonitoring(chIdx) {
+        let mine = this.monitoringList[0];
+        //현재 진행중인 모니터링이 이미 존재하는지 확인
+        let strE = null;
+        for(let em of this.monitoringList) {       
+            if (em.user == -1) continue; //내 자신꺼는 무시 
+            if (em.bStart == false) continue;                        
+            if (em.rx_DEV_idx == mine.rx_DEV_idx) {
+                strE = "모니터링 수신장치가 이미 다른 사용자에 의해 사용중입니다.";
+                break;
+            }
+            if (em.tx_CH_idx == chIdx) {
+                strE = "모니터링 대상장치가 이미 다른 사용자에 의해 사용중입니다.";
+                break;
+            }
+        }
+        return strE;        
+    }    
     
     _checkAndReport() {        
         if (this.state == 1) {
@@ -685,9 +714,9 @@ const MainTXConnector = class main_tx_connector {
         for (i = 0; i < spl.length; i++) {
             let spl2 = spl[i].split(':');
             let idx = parseInt(spl2[0]);
-            for (let i2 = 0; i2 < this.dataManager.uart_list.length; i2++) {
-                if (this.dataManager.uart_list[i2].idx == idx) {
-                    this.dataManager.uart_list[i2].state = spl2[1];
+            for (let i2 = 0; i2 < this.uart_list.length; i2++) {
+                if (this.uart_list[i2].idx == idx) {
+                    this.uart_list[i2].state = spl2[1];
                 }
             }
         }
@@ -745,6 +774,9 @@ const MainTXConnector = class main_tx_connector {
             this._iConnState = 10;
             this._reconnCount = 1;
             this._checkAndReport();
+            //상태 가져오기
+            this._requestRuntimeValue('spk_state');
+            this._requestRuntimeValue('monitor_state');
         } 
         else if(jsV.act == 'update_notify') {
             let szTarget = jsV.payload.target;
@@ -779,8 +811,11 @@ const MainTXConnector = class main_tx_connector {
             else if(szTarget == 'mtx_hardware') {} //MTX Hardware - 볼륨
             else if (szTarget == 'runtime_memory') { //스피커 선택 상태가 업데이트됨
                 if (jsV.payload.detail == 'spk_state') { //스피커 상태가 업데이트 됨
-                    this._requestRuntimeSpkState();
+                    this._requestRuntimeValue('spk_state');
                 }
+                else if(jsV.payload.detail == 'monitor_state') { //모니터링 상태가 업데이트 됨
+                    this._requestRuntimeValue('monitor_state');
+                }          
                 else {
                     console.log('Rumtime memory updated detail = ' + jsV.payload.detail);
                     console.log(jsV.payload);  
@@ -801,6 +836,11 @@ const MainTXConnector = class main_tx_connector {
                 //console.log(pld.memVal);  
                 this._validateSpeakerStates(pld.memVal);
             }
+            else if (pld.memKey == 'monitor_state') {
+                //console.log("Monitor state updated");
+                //console.log(pld.memVal);  
+                this._processingMonitoringList(pld.memVal);
+            }        
             else {
                 console.log("Unknown key value");
                 console.log(jsV);  
@@ -818,8 +858,8 @@ const MainTXConnector = class main_tx_connector {
         this._reconnTimeout = setTimeout(this._Websocket_connect.bind(this), 1000);
     }
 
-    _requestRuntimeSpkState() {
-        let data = {act: 'get_key', resreq: false, payload: {memKey: 'spk_state'}};
+    _requestRuntimeValue(szValue) {
+        let data = {act: 'get_key', resreq: false, payload: {memKey: szValue}};
         this._ws_sendAsJSON(data);      
     }       
 
@@ -861,6 +901,69 @@ const MainTXConnector = class main_tx_connector {
         this.enabledSpeakers = [...arrEnabledSpeakers];
         if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "enabled_speakers");
     }    
+
+    //monList = [{uidx: 2, tx: 10, rx: 2, forAmp: false}];
+    _processingMonitoringList(monList) {
+        //this.monitoringList.push({user: null, bStart: false, tx_CH_idx: 0, rx_DEV_idx: 0, bForAMP: false, waitForDISP: 0});
+        let bChanged = false;
+        //없어진 애들 삭제    
+        let bExist = true;
+        let i = 0;
+        if (monList == null) monList = [];
+        for(i = 0; i < monList.length; i++) monList[i].uidx = parseInt(monList[i].uidx);
+        while(bExist) {
+            bExist = false;
+            i = 0;
+            for(let em of this.monitoringList) {        
+                let bOK = false;
+                if (i == 0) { //내자신꺼는 제외
+                    i++;
+                    continue;
+                }
+                for(let el of monList) {
+                    if (el.uidx == em.user && el.rx == em.rx_DEV_idx) {
+                        bOK = true;
+                        break;
+                    }
+                }
+                if (!bOK) { //목록에서 없음
+                    bExist = true;
+                    bChanged = true;
+                    this.monitoringList.splice(i, 1);
+                    break;
+                }
+                i++;
+            }
+        }
+        //신규 목록 추가
+        for(let el of monList) {
+            bExist = false;      
+            for(let em of this.monitoringList) {
+                if (em.user == el.uidx && em.rx_DEV_idx == el.rx) {
+                    bExist = true;
+                    break;
+                }
+            }
+            if (!bExist) {
+                //내가 한거네..        
+                if (el.rx == this.monitor_dev_idx && el.uidx == g_user_payload.idx) {
+                    if(this.monitoringList[0].bStart) bExist = true; //내가 모니터링 중이 아닌데 누군가 함.. 즉 다른데서 내 아이디로 로그인...
+                }
+            }
+            if (!bExist) {
+                this.monitoringList.push({user: el.uidx, bStart: true, tx_CH_idx: el.tx, rx_DEV_idx: el.rx, bForAMP: el.forAmp, waitForDISP: 0});      
+                bChanged = true;
+            }
+        }
+
+        //console.log("Final Mon List");
+        //console.log(this.monitoringList);
+        if (bChanged) {
+            if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "monitoring_state");
+        }
+        return bChanged;
+    }
+
 }
 
 export { MainTXConnector };

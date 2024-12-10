@@ -1,5 +1,6 @@
 const MainMenuBar = class main_menu_bar {
-    constructor() {
+    constructor(connector) {        
+        this.connector = connector;
         this.cur_sel = 0;
 
         this.menuList = [
@@ -45,7 +46,7 @@ const MainMenuBar = class main_menu_bar {
                 ${szMenu}
             </div>
             <div class="flex items-center flex-none p-4 space-x-4">
-                <span class="text-gray-400">2022. 07. 22(금) 15:24.12</span>
+                <span class="text-gray-400" id="menubar_time_str">Waiting...</span>
             </div>
         `;
 
@@ -54,6 +55,7 @@ const MainMenuBar = class main_menu_bar {
             gDOM(this.menuList[i].id).addEventListener("click", this.on_MenuClick.bind(this, i));
         }
         this.cur_sel = 0;
+        this.mainTimer = setInterval(this._timerLoop.bind(this), 1000);
     }
 
     on_MenuClick(iID) {
@@ -68,6 +70,43 @@ const MainMenuBar = class main_menu_bar {
         this.cur_sel = iID;
 
         SwitchPage(this.menuList[iID].mid);
+    }
+
+    _setSrvTime(jsTime) {
+        const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+
+        let targetDay = document.getElementById('navi_flowDay');
+        let targetTime = document.getElementById('navi_flowTime');
+        
+        let year = jsTime.year;
+        let month = jsTime.month;
+        let day = jsTime.day;
+        let week = WEEKDAY[jsTime.dayOfWeek];
+
+        //targetDay.innerHTML = year + '.' + month + '.' + day + '(' + week + ')';
+        //targetTime.innerHTML = jsTime.HMS;
+        gDOM("menubar_time_str").innerHTML = year + ' ' + month + ' ' + day + '(' + week + ') ' + jsTime.HMS;
+    }
+
+
+    _timerLoop() {        
+        if (this.connector.selectedMtx == null) return;
+        let mTX = this.connector.selectedMtx;        
+        
+        mTX.rest_call("get_srv_time", 'NONE', null,
+            function (bRes, jsRecv, callParam) {
+                if (bRes) {
+                    if (jsRecv.payload == null) {
+                        //console.log("Payload is null!!!!");
+                        return;
+                    }
+                    //console.log("Received time:\n" + JSON.stringify(jsRecv));
+                    this._setSrvTime(jsRecv.payload);
+                } else {
+                    console.log("get_srv_time - res fail");
+                }
+            }.bind(this)
+        );
     }
 };
 

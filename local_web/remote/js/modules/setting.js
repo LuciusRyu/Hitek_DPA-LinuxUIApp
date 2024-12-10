@@ -64,6 +64,17 @@ const SettingMain = class setting_main {
                                 <div class="text-sm">${dti.capa_flags.toString(16)} & ${dti.status_flags.toString(16)}</div>
                             </div>
                         </div>
+                        <div class="mb-[4px] text-lg">네트워크 정보</div>
+                        <div class="bg-[#343437] rounded-[8px] px-[20px] py-[12px]">
+                            <div class="flex justify-between items-center pb-[12px]">
+                                <div class="text-sm">Interface/Type :</div>
+                                <div class="text-sm">${this.connector.baseInfo.network.interface} / ${this.connector.baseInfo.network.type}</div>
+                            </div>
+                            <div class="flex justify-between items-center pb-[12px]">
+                                <div class="text-sm">IP Address :</div>
+                                <div class="text-sm">${this.connector.baseInfo.network.cur_ip}</div>
+                            </div>
+                        </div>                        
                         <div class="mb-[4px] text-lg">시스템 전압</div>
                         <div class="bg-[#343437] rounded-[8px] px-[20px] py-[12px]">
                             <div class="flex justify-between items-center pb-[12px]">
@@ -78,12 +89,14 @@ const SettingMain = class setting_main {
                         <div class="mb-[4px] text-lg"> </div>
                     </div>
                 </div>
-                <div id="setting-iotest-btn" class="bg-[#1573d0] px-[80px] py-[12px] rounded-[8px] cursor-pointer ml-[20px]">출력신호 테스트</div>
-                <div class="mb-[4px] text-lg"> </div>
-                <div id="setting-reset-btn" class="bg-[#1573d0] px-[80px] py-[12px] rounded-[8px] cursor-pointer ml-[20px]">시스템 재 설정</div>                
+                <div class="flex justify-between items-center pb-[12px]">
+                    <div id="setting-iotest-btn" class="bg-[#1573d0] px-[20px] py-[12px] rounded-[8px] cursor-pointer ml-[20px]">출력신호 테스트</div>
+                    <div id="setting-reset-btn" class="bg-[#1573d0] px-[20px] py-[12px] rounded-[8px] cursor-pointer ml-[20px]">시스템 재 설정</div>                                    
+                </div>
+                
             </div>
         `;
-        
+
         gDOM(DIVID_MAINCTS).innerHTML = html;
         gDOM("setting-iotest-btn").addEventListener("click", this._showIOTestModal.bind(this));
         gDOM("setting-reset-btn").addEventListener("click", this._onSysReset.bind(this));
@@ -122,10 +135,41 @@ const SettingMain = class setting_main {
         }
     }
 
+    _showYesNoModal(szTitle, szAlert, fnYes) {
+        //width: 244px; height: 394px;
+        let html = `
+            <div id="modal-sounds" class="i-modal">
+                <div style="display: flex; margin: 15% auto; width: 488px;">
+                    <div class="i-modal-list">
+                        <div class="i-modal-list-title">
+                            <div class="i-modal-list-title-main">${szTitle}</div>
+                        </div>
+                        <div style="background-color: var(--penta-box-2nd); border-radius: var(--penta-base-radius);">
+                            <center><br/>${szAlert}<br/></center> <br/>
+                        </div>
+                        <div id="hide_alert_modal_yes" class="i-modal-list-btn-close bg-[#1573d0]">확인</div>
+                        <div class="i-modal-list-title">&nbsp;</div>
+                        <div id="hide_alert_modal_no" class="i-modal-list-btn-close">취소</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        gDOM(DIVID_MAINCTS_MODAL).innerHTML = html;
+        gDOM('hide_alert_modal_yes').addEventListener("click", fnYes);
+        gDOM('hide_alert_modal_no').addEventListener("click", this._hideIOTestModal.bind(this));
+    }    
+
     _onSysReset() {
+        this._showYesNoModal("시스템 재 설정", "시스템이 초기화 됩니다.<br/>정말로 초기화를 진행하시겠습니까?", this._doSysReset.bind(this));
+    }
+
+    _doSysReset() {
+        this._hideIOTestModal();
         let jsv = { act: 'SYS_OPEN_SETUP', payload: 'NONE' };        
         this.funcCallNative(JSON.stringify(jsv));
     }
+
 
     _startVoltageTimer() {
         if (this.volt_timer == null) {

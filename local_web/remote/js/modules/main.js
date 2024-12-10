@@ -8,9 +8,9 @@ import { SettingMain } from "./setting.js";
 const RemoteMain = class remote_main {
     constructor(funcCallNative) {
         this.funcCallNative = funcCallNative;
-
-        this.menu_bar = new MainMenuBar();
+        
         this.connector = new ConnectionManager(funcCallNative);
+        this.menu_bar = new MainMenuBar(this.connector);
         this.page_broadcast = new BroadcastMain(funcCallNative, this.connector);
         this.page_volume = new VolumeMain(funcCallNative, this.connector);
         this.page_monitor = new MonitorMain(funcCallNative, this.connector);

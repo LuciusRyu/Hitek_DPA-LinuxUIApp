@@ -16,6 +16,7 @@ const ConnectionManager = class connection_manager {
 
         this.mtxConnections = [];
         this.mtx_seq = 1;
+        this.selectedMtx = null;
     }
 
     Initialize(funcEventCallback) {
@@ -26,6 +27,8 @@ const ConnectionManager = class connection_manager {
 
     on_NativeCall(jsV) {
         if (jsV.act == "GET_BASEINFO_RES") {
+            //console.log("GET_BASEINFO_RES");
+            //console.log(JSON.stringify(jsV.payload));            
             if (jsV.payload == "NONE") {
                 alert("시스템 오류가 발생하였습니다.");
             } else {

@@ -17,7 +17,7 @@ const MonitorMain = class monitor_main {
     }
 
     on_ConnectorEvent(szEvt, jsV) {        
-        if (szEvt == EVTSTR_CONN_CHANGED) this._refreshLayout(jsV);
+        if (szEvt == EVTSTR_CONN_CHANGED) this._refreshLayout(jsV);        
     }
 
     onDisabled() {        

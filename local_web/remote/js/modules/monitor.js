@@ -1,11 +1,14 @@
 import { PentaMoniterSlide } from "./penta_moniter_slider.js";
 
+const COLOR_MULTITAB_NOR = "#232326";
+const COLOR_MULTITAB_SEL = "#343437";
+
 const MonitorMain = class monitor_main {
     constructor(funcCallNative, connector) {
         this.funcCallNative = funcCallNative;
         this.connector = connector;
         this.mtxList = null;
-        this.lastSelection = "";
+        this.lastSelection = {uuid: "", dom_id: ""};
         this.selectedMtx = null;
         this.selectedAmp = null;
         this.timer = null;
@@ -20,6 +23,29 @@ const MonitorMain = class monitor_main {
 
     on_ConnectorEvent(szEvt, jsV) {
         if (szEvt == EVTSTR_CONN_CHANGED) this._refreshLayout(jsV);
+        else if(szEvt == EVTSTR_DATA_CHANGED) {
+            //이럴리는 없지만 그래도 한번 검사해본다..
+            let bObjInList = false;
+            for (let mtx of this.mtxList) {
+                if (mtx == jsV.mtxConn) {
+                    bObjInList = true;
+                    break;
+                }
+            }
+            if (!bObjInList) {
+                //이거 자주 발생
+                //console.error("변화된 객체가 현재 목록에 없음");
+                return;
+            }
+
+            if (this.selectedMtx == null || this.selectedMtx.mtxInfo.uuid != jsV.mtxConn.mtxInfo.uuid) return;
+            for (let i = 0; i < this.mtxList.length; i++) {                                
+                if(this.mtxList[i].mtxInfo.uuid == this.selectedMtx.mtxInfo.uuid) {
+                    this._selectMTX(i, true);
+                    break;
+                }
+            }            
+        }
     }
 
     onDisabled() {
@@ -40,19 +66,25 @@ const MonitorMain = class monitor_main {
                     서버없음
                 </li>
             `;
-            this.lastSelection = "";
+            this.lastSelection = {uuid: "", dom_id: ""};
         } else {
             //마지막 선택했던 서버가 아직 있나?
             for (i = 0; i < mtxList.length; i++) {
-                if (mtxList[i].mtxInfo.uuid == this.lastSelection) {
+                if (mtxList[i].mtxInfo.uuid == this.lastSelection.uuid) {
                     iLast = i;
                     break;
                 }
             }
             if (iLast < 0) iLast = 0;
             for (i = 0; i < mtxList.length; i++) {
-                szLst += `<li class="flex justify-center items-center h-full cursor-pointer px-[20px] first:bg-[#343437] first:rounded-tl-lg last:rounded-tr-lg"`;
-                szLst += `' id='mm_mtxlist_${i}'>${mtxList[i].mtxInfo.id}</li>`;
+                let mtxNick = mtxList[i].mtxInfo.id;
+                let mtxD = mtxList[i].getMainTXDev();
+                if (mtxD != null) {
+                    if (mtxD.nick_name != "NONE") mtxNick = mtxD.nick_name;
+                }                                 
+
+                szLst += `<li class="flex justify-center items-center h-full cursor-pointer px-[20px] first:bg-[${COLOR_MULTITAB_NOR}] first:rounded-tl-lg last:rounded-tr-lg"`;
+                szLst += `' id='mm_mtxlist_${i}'>${mtxNick}</li>`;
             }
         }
         szLst += "</ul>";
@@ -61,10 +93,10 @@ const MonitorMain = class monitor_main {
             <div class="flex w-full h-full">
                 <aside id="mm_cts_side" class="flex-none h-full w-[208px]"></aside>
                 <section class="h-full grow ml-[12px]">
-                    <div class="items-center h-[60px] bg-[#232326] rounded-t-lg flex">
+                    <div class="items-center h-[60px] bg-[${COLOR_MULTITAB_NOR}] rounded-t-lg flex">
                         ${szLst}
                     </div>
-                    <div class="w-full h-[calc(100%-60px)] bg-[#343437] rounded-b-lg">
+                    <div class="w-full h-[calc(100%-60px)] bg-[${COLOR_MULTITAB_SEL}] rounded-b-lg">
                         <div class="flex flex-row w-full h-full p-[8px]">
                             <section id="mm_cts_main" class="flex-auto w-full h-full overflow-auto custom-scrollbar"></section>
                         </div>
@@ -85,10 +117,17 @@ const MonitorMain = class monitor_main {
 
     _selectMTX(idx, bForceRefresh) {
         if (idx < 0 || idx >= this.mtxList.length) return;
-        if (this.lastSelection == this.mtxList[idx].mtxInfo.uuid && bForceRefresh != true) return;
+        let tmtx = this.mtxList[idx];                
+        if (!bForceRefresh && this.lastSelection.uuid == tmtx.mtxInfo.uuid) return;
 
-        this.lastSelection = this.mtxList[idx].mtxInfo.uuid;
-        this._refreshMTX(this.mtxList[idx]);
+        let dom = gDOM(this.lastSelection.dom_id);
+        if (dom != null) dom.style.backgroundColor = COLOR_MULTITAB_NOR;
+
+        this.lastSelection.uuid = tmtx.mtxInfo.uuid;
+        this.lastSelection.dom_id = "mm_mtxlist_" + idx;
+        gDOM(this.lastSelection.dom_id).style.backgroundColor = COLOR_MULTITAB_SEL;
+
+        this._refreshMTX(tmtx);
     }
 
     _refreshMTX(mtxConn) {
@@ -96,33 +135,6 @@ const MonitorMain = class monitor_main {
 
         let evtPairList = [];
         let epf;
-
-        // let szState = `
-        //     <table border=1>
-        //         <tbody>
-        //             <tr>
-        //                 <td>
-        //                     <div id="mm_selected_amp_state">
-        //                         Not selected<br/>
-        //                         Statue: <br/>
-        //                         Limite: , HFP: <br/>
-        //                         Power: , OUT-IMP: <br/>
-        //                         Temp: , EM_Volume: <br/>
-        //                     </div>
-        //                 </td>
-        //             </tr>
-        //             <tr>
-        //                 <td><div id="mm_selected_amp_level">출력 레벨: 0</div></td>
-        //             </tr>
-        //             <tr>
-        //                 <td>
-        //                     <input id="mm_selected_amp_vol" type="number" value=0/><br/>
-        //                     <button id="mm_selected_amp_vol_change">변경</button>
-        //                 </td>
-        //             </tr>
-        //         </tbody>
-        //     </table>
-        // `;
 
         let szState = `
             <div class="flex flex-col h-full px-[12px] bg-[#232326] rounded-[8px]">
@@ -367,10 +379,13 @@ const MonitorMain = class monitor_main {
 
             for (let rxc of dev.rx_channels) {
                 let tid = "mm_amp_" + dev.idx + "_" + rxc.idx;
-                epf = { id: tid, fn: this._onAmpClicked.bind(this, tid, mtxConn, dev, rxc) };
-                evtPairList.push(epf);
+                epf = { id: tid, fn: this._onAmpClicked.bind(this, tid, mtxConn, dev, rxc) };                
+                let szClass = "p-[12px] bg-[#343437] rounded-[8px] cursor-pointer";
+                if (mtxConn.checkChannelInMonitoring(rxc.idx)) szClass += " border-[2px] border-yellow-300";
+                else evtPairList.push(epf);
+
                 szAmps += `
-                    <div id="${tid}" class="p-[12px] bg-[#343437] rounded-[8px] cursor-pointer">
+                    <div id="${tid}" class="${szClass}">
                         <div class="flex items-center justify-center text-center text-[14px]">${rxc.nick_name}</div>
                     </div>
                 `;
