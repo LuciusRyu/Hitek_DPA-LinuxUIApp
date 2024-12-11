@@ -326,6 +326,18 @@ int8_t I2C_ForEach::WriteVolume(uint32_t nCh, uint8_t cVolume) {
 	return 0;
 }
 
+int32_t I2C_ForEach::GetWritedVolumes(uint32_t nBufSize, int32_t* OUT_pCh, int32_t* OUT_pVol)
+{
+	int32_t res = 0;
+	uint32_t i;
+	for (i = 0; i < m_sizes_map && i < nBufSize; i++) {
+		OUT_pCh[i] = m_datas_map_v[i].cVal;
+		OUT_pVol[i] = m_datas_map_v[i].cData;
+		res++;
+	}
+	return res;
+}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //I2C_Interface
@@ -544,6 +556,7 @@ int32_t I2C_Interface::Init(const char *szConfPath, GPIO_Control *pGPIO)
 		}
 	}
 
+	ReadLastVolume();
 	return 0;
 }
 
@@ -627,6 +640,7 @@ int32_t I2C_Interface::SetChVolumes(Json::Value& volArr, Json::Value& OUT_res)
 		else chi["res"] = true;
 		OUT_res["results"].append(chi);
 	}
+	WriteLastVolume();
 	return res;
 }
 
@@ -687,4 +701,62 @@ bool I2C_Interface::Write8bit(I2C_ForEach* pIFE, i2c_8bit_pair* pPair) {
 	}
 #endif
 	return true;
+}
+
+void I2C_Interface::WriteLastVolume() {
+	I2C_ForEach* pU;
+	int32_t iRet, i;
+	
+	FILE* fp;
+	DARKPIF_fopen(&fp, I2C_LAST_VOLUME_FILE, "w+");
+	fprintf(fp, "<i2c_volumes>\n");
+
+	m_list.Rewind();
+	while ((pU = m_list.GetNext()) != NULL) {
+		iRet = pU->GetWritedVolumes(I2C_MAX_CHANNEL, m_channels, m_values);
+		if (iRet > 0) {
+			for (i = 0; i < iRet; i++) {
+				fprintf(fp, "\t<volume>\n");
+				fprintf(fp, "\t\t<ch>%d</ch>\n", m_channels[i]);
+				fprintf(fp, "\t\t<val>%d</val>\n", m_values[i]);
+				fprintf(fp, "\t</volume>\n");
+			}
+		}
+	}
+	fprintf(fp, "</i2c_volumes>\n");
+	fclose(fp);
+}
+
+void I2C_Interface::ReadLastVolume() {
+	Information_Parser IFP;
+	pTAGInformation pRoot, pTag, pSub;
+	int32_t c, v, ret;
+	I2C_ForEach* pU;
+
+	if (!IFP.OpenInfoFile(I2C_LAST_VOLUME_FILE)) {
+		return;
+	}
+
+	pRoot = IFP.GetTag("i2c_volumes");
+	if (pRoot == NULL) {
+		_DarkLogE("ERROR: Invalid I2C Volume file format");		
+	}
+
+	pTag = IFP.GetTag("volume", pRoot);
+	while (pTag != NULL) {
+		c = -1;		
+		if ((pSub = IFP.GetTag("ch", pTag)) != NULL) c = atoi((char*)pSub->pBuffer);
+		if ((pSub = IFP.GetTag("val", pTag)) != NULL) v = atoi((char*)pSub->pBuffer);
+
+		if (c >= 0) {
+			_DarkLogD("Write last volume: ch=%d, val=%d", c, v);
+			m_list.Rewind();
+			while ((pU = m_list.GetNext()) != NULL) {
+				ret = pU->WriteVolume((uint32_t)c, (uint8_t)v);
+				if (ret != -1) break;
+			}
+		}
+
+		pTag = pTag->pNext;
+	}
 }

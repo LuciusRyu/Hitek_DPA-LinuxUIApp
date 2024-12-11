@@ -6,6 +6,8 @@
 #define I2C_MAX_INTERFACE		16
 #define I2C_MAX_CHANNEL			128
 
+#define I2C_LAST_VOLUME_FILE	"/HitekDPA/config/mui_i2c_volumes.ifp"
+
 typedef struct i2c_8bit_pair {
 	uint16_t wAddr;
 	uint8_t cData;
@@ -30,6 +32,7 @@ public:
 	int32_t ReadVolumes(uint32_t nBufSize, int32_t *OUT_pCh, int32_t *OUT_pVol);
 	int32_t ReadAttribute(uint32_t nBufSize, int32_t* OUT_pCh, int32_t* OUT_pAttr);
 	int8_t WriteVolume(uint32_t nCh, uint8_t cVolume);
+	int32_t GetWritedVolumes(uint32_t nBufSize, int32_t* OUT_pCh, int32_t* OUT_pVol);
 
 	uint8_t m_slaveAddr;
 	uint8_t m_switchLine; //I2C 스위치 접속 정보
@@ -62,7 +65,7 @@ public:
 
 	int32_t GetChAttributes(Json::Value& OUT_res);
 	int32_t GetChVolumes(Json::Value& OUT_res);
-	int32_t SetChVolumes(Json::Value& volArr, Json::Value& OUT_res);
+	int32_t SetChVolumes(Json::Value& volArr, Json::Value& OUT_res);	
 
 protected:
 	friend class I2C_ForEach;
@@ -80,5 +83,7 @@ protected:
 	void DoLineSwitch(I2C_ForEach* pIFE);
 	bool Read8bit(I2C_ForEach* pIFE, i2c_8bit_pair* pPair);
 	bool Write8bit(I2C_ForEach* pIFE, i2c_8bit_pair* pPair);
+	void WriteLastVolume();
+	void ReadLastVolume();
 };
 
