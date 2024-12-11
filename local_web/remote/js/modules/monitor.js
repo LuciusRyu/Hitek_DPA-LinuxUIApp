@@ -13,6 +13,7 @@ const MonitorMain = class monitor_main {
         this.selectedAmp = null;
         this.timer = null;
         this.sliders = null;
+        this.collapseStateList = []; //{mtxSeq: 0, devList: []}
     }
 
     BuildLayout() {
@@ -56,10 +57,42 @@ const MonitorMain = class monitor_main {
     }
 
     _refreshLayout(mtxList) {
+        let i;
+        //리스트 정리 - 없어진 애들 삭제
+        let bContinue = true;
+        while(bContinue) {
+            bContinue = false;
+            for(i = 0; i < this.collapseStateList.length; i++) {
+                let bExist = false;
+                for(let em of mtxList) {
+                    if (em.uniq_seq == this.collapseStateList[i].mtxSeq) {
+                        bExist = true;
+                        break;
+                    }
+                }
+                if (!bExist) {
+                    this.collapseStateList.splice(i, 1);
+                    bContinue = true;
+                    break;
+                }
+            }
+        }
+        //리스트 정리 - 신규 추가
+        for(let em of mtxList) {
+            let bExist = false;
+            for(let ec of this.collapseStateList) {
+                if (ec.mtxSeq == em.uniq_seq) {
+                    bExist = true;
+                    break;
+                }
+            }
+            if (!bExist) this.collapseStateList.push({mtxSeq: em.uniq_seq, devList: []});
+        }
+
         let szLst = `<ul class="flex flex-row h-full">`;
         this.mtxList = mtxList;
         let iLast = -1;
-        let i;
+        
         if (mtxList.length < 1) {
             szLst += `
                 <li class="flex justify-center items-center h-full cursor-pointer px-[20px] first:bg-[#343437] first:rounded-tl-lg last:rounded-tr-lg">
@@ -135,44 +168,44 @@ const MonitorMain = class monitor_main {
 
         let evtPairList = [];
         let epf;
-
+    
         let szState = `
             <div class="flex flex-col h-full px-[12px] bg-[#232326] rounded-[8px]">
                 <div id="mm_selected_amp_state">
-                    <div class="flex justify-center items-center h-[28px] mt-[16px] text-[22px]"></div>
+                    <div id="amp_in_status_title" class="flex justify-center items-center h-[28px] mt-[16px] text-[22px]">선택없음</div>
                     <div class="mt-[16px] mb-[48px]">
                         <div class="flex flex-col justify-center items-center h-[60px] bg-[#343437] rounded-[8px]">
                             <div class="text-[14px]">STATUS</div>
-                            <div class="text-[14px]">&nbsp;</div>
+                            <div id="amp_in_status_status" class="text-[14px]">&nbsp;</div>
                         </div>
                         <div class="flex h-[60px] mt-[8px]">
                             <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
                                 <div class="text-[14px]">HFP</div>
-                                <div class="text-[14px]">&nbsp;</div>
+                                <div id="amp_in_status_filter" class="text-[14px]">&nbsp;</div>
                             </div>
                             <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
                                 <div class="text-[14px]">LIMIT</div>
-                                <div class="text-[14px]">&nbsp;</div>
+                                <div id="amp_in_status_limit" class="text-[14px]">&nbsp;</div>
                             </div>
                         </div>
                         <div class="flex h-[60px] mt-[8px]">
                             <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
                                 <div class="text-[14px]">POWER</div>
-                                <div class="text-[14px]">&nbsp;</div>
+                                <div id="amp_in_status_power" class="text-[14px]">&nbsp;</div>
                             </div>
                             <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
                                 <div class="text-[14px]">IMP</div>
-                                <div class="text-[14px]">&nbsp;</div>
+                                <div id="amp_in_status_imp" class="text-[14px]">&nbsp;</div>
                             </div>
                         </div>
                         <div class="flex h-[60px] mt-[8px]">
                             <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
                                 <div class="text-[14px]">EM-VOL</div>
-                                <div class="text-[14px]">&nbsp;</div>
+                                <div id="amp_in_status_em_volm" class="text-[14px]">&nbsp;</div>
                             </div>
                             <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
                                 <div class="text-[14px]">TEMP</div>
-                                <div class="text-[14px]">&nbsp;</div>
+                                <div id="amp_in_status_temp" class="text-[14px]">&nbsp;</div>
                             </div>
                         </div>
                     </div>
@@ -208,12 +241,9 @@ const MonitorMain = class monitor_main {
                             <div class="w-[20px] h-[10px] bg-white" id="peak_box"></div>
                         </div>
                         <div class="h-[90%]">
-                            <div class="relative w-full h-full">
-                                <div
-                                    id="volume_level_range"
-                                    class="absolute top-0 w-[8px] h-full transform -translate-x-1/2 left-1/2 border-0 rounded-[22px] bg-white"
-                                ></div>
-                            </div>
+                            <div class="barcontainer">
+                                <div class="bar" id="volume_level_range" style="height: 1%;"></div>
+                            </div>                        
                         </div>
                     </div>
 
@@ -337,14 +367,40 @@ const MonitorMain = class monitor_main {
         let ctid;
         let ccid;
 
+        let collapseState = null;
+        for(i = 0; i < this.collapseStateList.length; i++) {
+            if (this.collapseStateList[i].mtxSeq == mtxConn.uniq_seq) {
+                collapseState = this.collapseStateList[i];
+                break;
+            }
+        }
+
+        if (collapseState == null) {
+            alert("Programming error!!! - _refreshMTX - NO list");
+            return;
+        }
+        
         for (let dev of mtxConn.devList) {
             if (!dev.name.startsWith(getDevModelPrefix("PA"))) continue;
+
+            //저장된 펼침 상태 가져오기
+            let colState = null;       
+            for(let es of collapseState.devList) {
+                if (es.idx == dev.idx) {
+                    colState = es;
+                    break;
+                }
+            }
+            if (colState == null) {
+                colState = {idx: dev.idx, state: "none"};
+                collapseState.devList.push(colState);
+            }
 
             let devNick = dev.nick_name;
             if (devNick == "NONE") devNick = dev.name;
 
-            ctid = "collapseTitle_" + i;
-            ccid = "collapseContent_" + i;
+            ctid = "collapseTitle_" + dev.idx;
+            ccid = "collapseContent_" + dev.idx;
 
             szAmps += `
                 <div class="mb-[10px]">
@@ -369,12 +425,12 @@ const MonitorMain = class monitor_main {
                     <div
                         id="${ccid}"
                         class="w-full px-[12px] py-[10px] overflow-hidden bg-[#232326] rounded-b-[8px]"
-                        style="display: none"
+                        style="display: ${colState.state}"
                     >
                         <div class="grid grid-cols-auto-156px gap-[12px]">
             `;
 
-            epf = { id: ctid, fn: this._onAmpCollapseClicked.bind(this, ctid, ccid) };
+            epf = { id: ctid, fn: this._onAmpCollapseClicked.bind(this, dev.idx, collapseState) };
             evtPairList.push(epf);
 
             for (let rxc of dev.rx_channels) {
@@ -384,6 +440,11 @@ const MonitorMain = class monitor_main {
                 if (mtxConn.checkChannelInMonitoring(rxc.idx)) szClass += " border-[2px] border-yellow-300";
                 else evtPairList.push(epf);
 
+                if (this.selectedAmp != null) {
+                    if (this.selectedAmp.mtxConn.uniq_seq == mtxConn.uniq_seq) {
+                        if (this.selectedAmp.rxc.idx == rxc.idx) szClass += " custom-click";
+                    }                    
+                }
                 szAmps += `
                     <div id="${tid}" class="${szClass}">
                         <div class="flex items-center justify-center text-center text-[14px]">${rxc.nick_name}</div>
@@ -396,11 +457,7 @@ const MonitorMain = class monitor_main {
                     </div>
                 </div>
             `;
-
-            i++;
-        }
-
-        this.selectedAmp = null;
+        }        
 
         document.getElementById("mm_cts_main").innerHTML = szAmps;
 
@@ -423,53 +480,20 @@ const MonitorMain = class monitor_main {
         }
         dom = gDOM("mm_selected_amp_state");
 
-        let html;
-        if (bEnable) {
-            if (tdev.nick_name == "NONE")
-                html = `<div class="flex justify-center items-center h-[28px] mt-[16px] text-[22px]">${tdev.name} : ${rxc.nick_name}</div>`;
-            else
-                html = `<div class="flex justify-center items-center h-[28px] mt-[16px] text-[22px]">${tdev.nick_name} : ${rxc.nick_name}</div>`;
-        } else html = `<div class="flex justify-center items-center h-[28px] mt-[16px] text-[22px]">선택없음</div>`;
-        html += `
-            <div class="mt-[16px] mb-[48px]">
-                <div class="flex flex-col justify-center items-center h-[60px] bg-[#343437] rounded-[8px]">
-                    <div class="text-[14px]">STATUS</div>
-                    <div class="text-[14px]">&nbsp;</div>
-                </div>
-                <div class="flex h-[60px] mt-[8px]">
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
-                        <div class="text-[14px]">HFP</div>
-                        <div class="text-[14px]">&nbsp;</div>
-                    </div>
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
-                        <div class="text-[14px]">LIMIT</div>
-                        <div class="text-[14px]">&nbsp;</div>
-                    </div>
-                </div>
-                <div class="flex h-[60px] mt-[8px]">
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
-                        <div class="text-[14px]">POWER</div>
-                        <div class="text-[14px]">&nbsp;</div>
-                    </div>
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
-                        <div class="text-[14px]">IMP</div>
-                        <div class="text-[14px]">&nbsp;</div>
-                    </div>
-                </div>
-                <div class="flex h-[60px] mt-[8px]">
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
-                        <div class="text-[14px]">EM-VOL</div>
-                        <div class="text-[14px]">&nbsp;</div>
-                    </div>
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
-                        <div class="text-[14px]">TEMP</div>
-                        <div class="text-[14px]">&nbsp;</div>
-                    </div>
-                </div>
-            </div>
-        `;
+        let szTitle = "선택없음";
+        if (bEnable) szTitle = rxc.nick_name;
 
-        dom.innerHTML = html;
+        gDOM('amp_in_status_title').innerText = szTitle;
+        gDOM('amp_in_status_status').innerText = " ";
+        gDOM('amp_in_status_filter').innerText = " ";
+        gDOM('amp_in_status_limit').innerText = " ";
+        gDOM('amp_in_status_power').innerText = " ";
+        gDOM('amp_in_status_temp').innerText = " ";
+        gDOM('amp_in_status_imp').innerText = " ";        
+        gDOM('amp_in_status_em_volm').innerText = " ";
+
+        if (this.sliders != null && this.sliders.length > 0) this.sliders[0].SetValue(0);
+        this._setVolumeMeter(0, false);
     }
 
     _onAmpClicked(szId, mtxConn, tdev, rxc) {
@@ -485,6 +509,11 @@ const MonitorMain = class monitor_main {
                 this._controlUISelection(false, this.selectedAmp.szID, tdev, rxc);
                 this._rest_startStop_mornitor(false, this.selectedAmp);
             }
+            let szDup = mtxConn.checkAMPMonitoring(rxc.idx);
+            if (szDup != null) {
+                this._showAlertModal("오류", szDup);                
+                return;
+            }
             //시작
             this._controlUISelection(true, szId, tdev, rxc);
             this.selectedAmp = { szID: szId, mtxConn: mtxConn, dev: tdev, rxc: rxc, seq: 0 };
@@ -492,14 +521,15 @@ const MonitorMain = class monitor_main {
         }
     }
 
-    _onVolumeChange() {
-        let dom = gDOM("mm_selected_amp_vol");
-        if (dom == null || this.selectedAmp == null) return;
-        this._rest_changeVolume(this.selectedAmp, parseInt(dom.value));
+    _onVolumeChange(szId, fVol) {        
+        if (this.selectedAmp == null) return;
+        //console.log("OnChange: " + fVol);
+        this._rest_changeVolume(this.selectedAmp, parseInt(fVol * 100));
     }
 
     _rest_changeVolume(objAmp, vol) {
         let payload = { ch_idx: objAmp.rxc.idx, volume: vol };
+        //console.log("Vol: " + JSON.stringify(payload));
         objAmp.mtxConn.rest_call(
             "set_channel_volume",
             payload,
@@ -520,15 +550,15 @@ const MonitorMain = class monitor_main {
 
     _rest_startStop_mornitor(bStart, objAmp) {
         if (objAmp.mtxConn == null) return;
-        let myTX = this.connector.getMyTXDev();
+        let myTX = objAmp.mtxConn.getMyTXDev();
         if (myTX == null) return;
-
+        
         if (bStart != true) {
             if (this.timer != null) clearInterval(this.timer);
             this.timer = null;
         }
 
-        let payload = { start: bStart, ch_idx: objAmp.rxc.idx, rx_dev: myTX.idx };
+        let payload = { start: bStart, ch_idx: objAmp.rxc.idx, rx_dev: myTX.idx, userInfo: this.connector.userInfo };
         objAmp.mtxConn.rest_call(
             "channel_monitoring",
             payload,
@@ -545,11 +575,11 @@ const MonitorMain = class monitor_main {
                                     this._controlUISelection(false, this.selectedAmp.szID, null, null);
                                     this.selectedAmp = null;
                                 }
-                                console.log(JSON.stringify(jsRecv));
-                                alert("채널 모니터링 시작 실패");
+                                console.log(JSON.stringify(jsRecv));                                
                             }
+                            this._showAlertModal("오류", "채널 모니터링 시작 실패<br/>" + jsRecv.error);
                         } else {
-                            alert("채널 모니터링 중지 실패");
+                            this._showAlertModal("오류", "채널 모니터링 중지 실패");
                         }
                         return;
                     }
@@ -559,7 +589,7 @@ const MonitorMain = class monitor_main {
                         this.timer = setInterval(this._channelRefreshLoop.bind(this), 200);
                     }
                 } else {
-                    alert("채널 모니터링 제어 실패");
+                    this._showAlertModal("오류", "채널 모니터링 제어 실패");
                 }
             }.bind(this)
         );
@@ -598,6 +628,25 @@ const MonitorMain = class monitor_main {
         );
     }
 
+    _setVolumeMeter(volLvl, bPeak) {
+        if (volLvl < 1) volLvl = 1;
+        let dom = gDOM('volume_level_range');
+
+        if (dom != null) {
+            dom.style.height = volLvl + '%';
+        
+            if (volLvl <= 73) dom.style.background = '#64FE2E';
+            else if (volLvl <= 93) dom.style.background = '#F4FA58';
+            else dom.style.background = '#FF0000';
+        }
+
+        dom = gDOM('peak_box');
+        if (dom != null) {
+            if (bPeak) dom.style.backgroundColor = 'red';
+            else dom.style.backgroundColor = 'white';
+        }
+    }
+
     _refreshAmpState(jsRes) {
         if (jsRes.b64_val == "NONE") {
             console.log("Warning - No status value..");
@@ -605,66 +654,42 @@ const MonitorMain = class monitor_main {
         }
         let values = Base64.decode(jsRes.b64_val);
         let res = JSON.parse(values);
-        let dom = gDOM("mm_selected_amp_state");
 
-        let devNick = this.selectedAmp.dev.nick_name;
-        if (devNick == "NONE") devNick = this.selectedAmp.dev.name;
-        let html = `
-            <div class="flex justify-center items-center h-[28px] mt-[16px] text-[22px]">${devNick} : ${this.selectedAmp.rxc.nick_name}</div>
-                <div class="mt-[16px] mb-[48px]">
-                <div class="flex flex-col justify-center items-center h-[60px] bg-[#343437] rounded-[8px]">
-                    <div class="text-[14px]">STATUS</div>
-                    <div class="text-[14px]">${this.selectedAmp.rxc.state.status}</div>
-                </div>
-                <div class="flex h-[60px] mt-[8px]">
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
-                        <div class="text-[14px]">HFP</div>
-                        <div class="text-[14px]">${res.hfp}</div>
-                    </div>
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
-                        <div class="text-[14px]">LIMIT</div>
-                        <div class="text-[14px]">${res.limit}</div>
-                    </div>
-                </div>
-                <div class="flex h-[60px] mt-[8px]">
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
-                        <div class="text-[14px]">POWER</div>
-                        <div class="text-[14px]">${res.power}</div>
-                    </div>
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
-                        <div class="text-[14px]">IMP</div>
-                        <div class="text-[14px]">${res.imp}</div>
-                    </div>
-                </div>
-                <div class="flex h-[60px] mt-[8px]">
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px]">
-                        <div class="text-[14px]">EM-VOL</div>
-                        <div class="text-[14px]">${res.em_vol}</div>
-                    </div>
-                    <div class="flex flex-col justify-center items-center flex-1 bg-[#343437] rounded-[8px] ml-[8px]">
-                        <div class="text-[14px]">TEMP</div>
-                        <div class="text-[14px]">${res.temp}</div>
-                    </div>
-                </div>
-            </div>
-        `;
+        gDOM('amp_in_status_status').innerText = this.selectedAmp.rxc.state.status;
+        gDOM('amp_in_status_filter').innerText = res.hfp == 'O' ? 'On' : 'Off';
+        gDOM('amp_in_status_limit').innerText = res.limit == 'O' ? 'On' : 'Off';
+        gDOM('amp_in_status_power').innerText = res.power == 'A' ? 'AC' : 'DC';
+        gDOM('amp_in_status_temp').innerText = res.temp + '℃';
+        gDOM('amp_in_status_imp').innerText = res.imp == 'L' ? '70V' : '100V';        
+        gDOM('amp_in_status_em_volm').innerText = res.em_vol;
 
-        dom.innerHTML = html;
-
-        // dom = gDOM("mm_selected_amp_level");
-        // dom.innerText = "출력 레벨: " + res.level;
-        //설정 볼륨값 = res.vol
+        //console.log("Volume level = " + res.level);
+        this._setVolumeMeter(parseInt(res.level), res.peak == 'O');
+                
+        if (this.sliders != null && this.sliders.length > 0) this.sliders[0].SetValue(parseInt(res.vol) / 100.0);
     }
 
-    _onAmpCollapseClicked(ctid, ccid) {
+    _onAmpCollapseClicked(devIdx, collapseState) {
+        let ctid = "collapseTitle_" + devIdx;
+        let ccid = "collapseContent_" + devIdx;
+        let tState = null;
+        for(let i = 0; i < collapseState.devList.length; i++) {
+            if (collapseState.devList[i].idx == devIdx) {
+                tState = collapseState.devList[i];
+                break;
+            }
+        }
+
         const collapseTitle = document.getElementById(ctid);
         const collapseContent = document.getElementById(ccid);
 
         if (collapseContent.style.display == "none") {
+            if (tState != null) tState.state = "block";
             collapseContent.style.display = "block";
             collapseTitle.style.borderBottomLeftRadius = "0px";
             collapseTitle.style.borderBottomRightRadius = "0px";
         } else {
+            if (tState != null) tState.state = "none";
             collapseContent.style.display = "none";
             collapseTitle.style.borderBottomLeftRadius = "8px";
             collapseTitle.style.borderBottomRightRadius = "8px";
@@ -677,9 +702,36 @@ const MonitorMain = class monitor_main {
 
         for (let i = 0; i < this.sliders.length; i++) {
             this.sliders[i].Show();
-            // this.sliders[i].SetOnChangeCallback(this._onVolumeChange.bind(this));
+             this.sliders[i].SetOnChangeCallback(this._onVolumeChange.bind(this));
         }
     }
+
+    _showAlertModal(szTitle, szAlert) {
+        //width: 244px; height: 394px;
+        let html = `
+            <div id="modal-alert" class="i-modal">
+                <div style="display: flex; margin: 15% auto; width: 488px;">
+                    <div class="i-modal-list">
+                        <div class="i-modal-list-title">
+                            <div class="i-modal-list-title-main">${szTitle}</div>
+                        </div>
+                        <div style="background-color: var(--penta-box-2nd); border-radius: var(--penta-base-radius);">
+                            <center><br/>${szAlert}<br/></center> <br/>
+                        </div>
+                        <div id="hide_alert_modal" class="i-modal-list-btn-close">확인</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        gDOM(DIVID_MAINCTS_MODAL).innerHTML = html;
+        gDOM('hide_alert_modal').addEventListener("click", this._hideModalLayout.bind(this));
+    }        
+
+    _hideModalLayout(state) {
+        gDOM("modal-alert").style.display = "none";
+    }
+
 };
 
 export { MonitorMain };

@@ -17,6 +17,7 @@ const ConnectionManager = class connection_manager {
         this.mtxConnections = [];
         this.mtx_seq = 1;
         this.selectedMtx = null;
+        this.userInfo = {idx: REMOTE_USER_IDX, name: 'REMOTE'};
     }
 
     Initialize(funcEventCallback) {
@@ -33,6 +34,7 @@ const ConnectionManager = class connection_manager {
                 alert("시스템 오류가 발생하였습니다.");
             } else {
                 this.baseInfo = jsV.payload;
+                this.userInfo.name = this.baseInfo.sys_id;
                 this.init_step = 1;
                 this._callNative("GET_SYS_CONFIG", "NONE");
             }
@@ -43,7 +45,7 @@ const ConnectionManager = class connection_manager {
                 let sysInfo = jsV.payload;
                 if (sysInfo.status == "OK") {
                     this.sysInfo = sysInfo;
-                    this.dante_dev_id = sysInfo.dante_dev_id;
+                    this.dante_dev_id = sysInfo.dante_dev_id;                    
                     console.log("Received Dante DEV ID = " + this.dante_dev_id);
                     this.init_step = 2;
                     this._callNative("GET_MAINTX_LIST", "NONE");
@@ -68,12 +70,6 @@ const ConnectionManager = class connection_manager {
             if (this.mtxConnections[i].IsAvailable()) availList.push(this.mtxConnections[i]);
         }
         return availList;
-    }
-
-    getMyTXDev() {
-        let lst = this.getAvailConnections();
-        if (lst.length < 1) return null;
-        return lst[0].getMyTXDev();
     }
 
     _callNative(szAct, jsPayload) {

@@ -334,6 +334,25 @@ const MainTXConnector = class main_tx_connector {
         this._ws_sendUIBroadcast({event: "data_changed", data_type: "broadcast_output", data: tData});    
     }
 
+    getDeviceByChannelIdx(iIdx, bWithChannel) {
+        let i, i2;
+        for (i = 0; i < this.devList.length; i++) {
+            for (i2 = 0; i2 < this.devList[i].rx_channels.length; i2++) {
+                if(this.devList[i].rx_channels[i2].idx == iIdx) {
+                    if (bWithChannel) return {dev: this.devList[i], ch: this.devList[i].rx_channels[i2]};
+                    else return this.devList[i];
+                }
+            }
+            for (i2 = 0; i2 < this.devList[i].tx_channels.length; i2++) {
+                if(this.devList[i].tx_channels[i2].idx == iIdx) {
+                    if (bWithChannel) return {dev: this.devList[i], ch: this.devList[i].tx_channels[i2]};
+                    else return this.devList[i];
+                }
+            }
+        }
+        return null;
+    }
+
     getDeviceBySpeakerIdx(iIdx, bWithChannel) {
         for (let i = 0; i < this.devList.length; i++) {
             for (let i2 = 0; i2 < this.devList[i].rx_channels.length; i2++) {
@@ -358,6 +377,7 @@ const MainTXConnector = class main_tx_connector {
     }    
     
     checkAMPMonitoring(chIdx) {
+        let txDev = this.getDeviceByChannelIdx(chIdx, false);
         let mine = this.monitoringList[0];
         //현재 진행중인 모니터링이 이미 존재하는지 확인
         let strE = null;
@@ -368,13 +388,20 @@ const MainTXConnector = class main_tx_connector {
                 strE = "모니터링 수신장치가 이미 다른 사용자에 의해 사용중입니다.";
                 break;
             }
-            if (em.tx_CH_idx == chIdx) {
+            //앰프모니터링의 경우 한번에 하나의 채널만 모니터링 할 수 있기때문에 장치가 겹치면 안된다
+            //if (em.tx_CH_idx == chIdx) {
+            let tDev = this.getDeviceByChannelIdx(em.tx_CH_idx, false);
+            if (tDev.idx == txDev.idx) {
                 strE = "모니터링 대상장치가 이미 다른 사용자에 의해 사용중입니다.";
                 break;
             }
         }
         return strE;        
     }    
+
+    getMonitoringInfo() {
+        return this.monitoringList[0];
+    }
     
     _checkAndReport() {        
         if (this.state == 1) {
@@ -479,6 +506,15 @@ const MainTXConnector = class main_tx_connector {
             }                        
             this.devList = list;
             this.devList.sort(this._sortByNickname);            
+            //내 장치 아이디 설정 - 모니터링시 아이디를 설정한다
+            for (let ed of this.devList) {
+                if (ed.name == this.szDanteID) {
+                    this.monitoringList[0].rx_DEV_idx = ed.idx;
+                    break;
+                }
+            }
+    
+
             this._checkAndReport();
             if (callParam == true) {
                 if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "device_list");                                
@@ -768,7 +804,7 @@ const MainTXConnector = class main_tx_connector {
         }
 
         if (jsV.act == 'who_are_you') {
-            let data = { act: jsV.act, error: 'NONE', resreq: false, payload: { idx: 9999999, name: this.baseInfo.sys_id, type: 'REMOTE' } };
+            let data = { act: jsV.act, error: 'NONE', resreq: false, payload: { idx: REMOTE_USER_IDX, name: this.baseInfo.sys_id, type: 'REMOTE' } };
             this._ws_sendAsJSON(data);
             console.log('Websocket initialized');
             this._iConnState = 10;
@@ -936,6 +972,7 @@ const MainTXConnector = class main_tx_connector {
             }
         }
         //신규 목록 추가
+        let mine = this.monitoringList[0];
         for(let el of monList) {
             bExist = false;      
             for(let em of this.monitoringList) {
@@ -945,10 +982,8 @@ const MainTXConnector = class main_tx_connector {
                 }
             }
             if (!bExist) {
-                //내가 한거네..        
-                if (el.rx == this.monitor_dev_idx && el.uidx == g_user_payload.idx) {
-                    if(this.monitoringList[0].bStart) bExist = true; //내가 모니터링 중이 아닌데 누군가 함.. 즉 다른데서 내 아이디로 로그인...
-                }
+                //내가 한거네.. 리모트는 rx_DEV_idx 로 구분하낟
+                if (el.rx == mine.rx_DEV_idx) bExist = true; 
             }
             if (!bExist) {
                 this.monitoringList.push({user: el.uidx, bStart: true, tx_CH_idx: el.tx, rx_DEV_idx: el.rx, bForAMP: el.forAmp, waitForDISP: 0});      
@@ -956,8 +991,8 @@ const MainTXConnector = class main_tx_connector {
             }
         }
 
-        //console.log("Final Mon List");
-        //console.log(this.monitoringList);
+        console.log("Final Mon List");
+        console.log(JSON.stringify(this.monitoringList));
         if (bChanged) {
             if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "monitoring_state");
         }

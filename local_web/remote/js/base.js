@@ -17,6 +17,8 @@ const EVTSTR_MTX_DATA_UPDATED = "data_updated";
 const EVTSTR_CONN_CHANGED = "conn_state_changed";
 const EVTSTR_DATA_CHANGED = "data_changed";
 
+const REMOTE_USER_IDX = 9999999;
+
 let g_callnative_queue = [];
 let g_callnative_timer = null;
 let g_callnative_counter = 0;

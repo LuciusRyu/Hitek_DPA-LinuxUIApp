@@ -9,7 +9,9 @@ const VolumeMain = class volume_main {
     }
 
     BuildLayout() {
-        if (this.myTXDev == null) this.myTXDev = this.connector.getMyTXDev();
+        let mtxList = this.connector.getAvailConnections();        
+        if (mtxList == null || mtxList.length < 1) return;
+        this.myTXDev = mtxList[0].getMyTXDev();
         let i;
         let html = `<div class="flex justify-center h-[716px]">`;
 

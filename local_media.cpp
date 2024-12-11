@@ -67,7 +67,7 @@ int localMedia::init(const char *szBasePath, const char *szScriptPath) {
 
     //SEQ검사
     for(i = 0; i < tList.size(); i++) {
-        if (tList[i]["seq"].asUInt() > m_media_seq) m_media_seq = tList[i]["seq"].asUInt();
+        if (tList[i]["seq"].asUInt() > m_media_seq) m_media_seq = tList[i]["seq"].asUInt() + 1;
     }
 
     m_media_list.clear();

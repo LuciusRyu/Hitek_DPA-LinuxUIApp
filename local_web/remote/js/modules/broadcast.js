@@ -882,6 +882,8 @@ const BroadcastMain = class broadcast_main {
 
     _onMediaSelect(szDomID, bIsLocal, mediaObj) {
         //this.broadcast = {groups: [], txch: 0, medias: [], state: 0};
+        //console.log("DomID: " + szDomID);
+        //console.log("Media: " + JSON.stringify(mediaObj));
         if (this.broadcast.state != BRDSTATE_IDLE) return;
         let uri = this._genMediaURI(bIsLocal, mediaObj);
         let exIdx = -1;
@@ -1222,7 +1224,7 @@ const BroadcastMain = class broadcast_main {
             scTXCMedia += `<div class="pt-[8px] border-b-[3px] border-dashed border-[#757575]"></div>`;
             for (let m of this.localMedias) {
                 if (m.remote_idx < 5) continue; //차임은 표시하지 않는다
-                let tid = "bdc_media_select_local_" + m.mtx_uuid + "_" + m.seq;
+                let tid = "bdc_media_select_local_" + m.uniq_seq + "_" + m.seq;
                 let epf = { id: tid, fn: this._onMediaSelect.bind(this, tid, true, m) };
 
                 let gSelected = "";
