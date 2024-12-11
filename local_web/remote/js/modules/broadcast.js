@@ -378,7 +378,7 @@ const BroadcastMain = class broadcast_main {
             for (let ga of this.selectedMtx.groupList) {
                 if (gs === ga.idx) {
                     gCount++;
-                    stGroup += `<div class="m-modal-list-sel-item-content">${ga.name} (${ga.speakers.length})</div>`;
+                    stGroup += `<div class="m-modal-list-sel-item-content">${ga.desc} (${ga.speakers.length})</div>`;
                 }
             }
         }
@@ -481,7 +481,7 @@ const BroadcastMain = class broadcast_main {
             for (let ga of this.selectedMtx.groupList) {
                 if (gs === ga.idx) {
                     gCount++;
-                    stGroup += `<div class="i-modal-list-sel-item-content">${ga.name} (${ga.speakers.length})</div>`;
+                    stGroup += `<div class="i-modal-list-sel-item-content">${ga.desc} (${ga.speakers.length})</div>`;
                 }
             }
         }
@@ -1145,7 +1145,7 @@ const BroadcastMain = class broadcast_main {
 
             szGroup += `
                 <div id="${tid}" class="h-[78px] p-[12px] bg-[#343437] rounded-[8px] ${szSelectable} ${gSelected}">
-                    <div class="flex items-center justify-center text-center h-[22px]" ${szTextStyle}>${grp.name}(${grp.speakers.length})</div>
+                    <div class="flex items-center justify-center text-center h-[22px]" ${szTextStyle}>${grp.desc}(${grp.speakers.length})</div>
                     ${szBrdState}
                 </div>
             `;

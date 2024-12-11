@@ -6,6 +6,7 @@ const MainTXConnector = class main_tx_connector {
         this.uniq_seq = seq;
 
         this.groupList = groupList;
+        this.groupList.sort(this._sortByName);            
         this.devList = null;
         this.configList = null;
         this.emrg_list = null;
@@ -663,6 +664,7 @@ const MainTXConnector = class main_tx_connector {
                 return;
             }            
             this.groupList = jsRecv.payload;
+            this.groupList.sort(this._sortByName);            
             if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "group_list");
         }.bind(this));
     }
@@ -728,6 +730,13 @@ const MainTXConnector = class main_tx_connector {
         if (at > bt) return 1;
         return 0;
     }
+
+    _sortByName(a, b) {
+        if (a.name < b.name) return -1;
+        if (a.name > b.name) return 1;
+        return 0;
+    }
+
 
     _refreshUARTState(szState) {
         let i;
@@ -824,6 +833,7 @@ const MainTXConnector = class main_tx_connector {
                 this._rest_getBroadcastState(true);
             }
             else if (szTarget == 'group') { //그룹 정보
+                this._rest_getDevList(false); //그룹정보가 speakers에 속해있기때문에 이것도 업뎃해야 한다
                 this._rest_getGroupList();
             }        
             else if (szTarget == 'user') { //사용자 정보
@@ -831,7 +841,7 @@ const MainTXConnector = class main_tx_connector {
             }
             else if (szTarget == 'emr_group') { //긴급/화재 정보
                 this._rest_getEMRGroups();
-                this._rest_getDevList(false); //그룹정보가 amp에 속해있기때문에 이것도 업뎃해야 한다
+                this._rest_getDevList(false); //그룹정보가 speakers에 속해있기때문에 이것도 업뎃해야 한다
             }
             else if (szTarget == 'media') { //음원
                 this._rest_getMediaList(true);
