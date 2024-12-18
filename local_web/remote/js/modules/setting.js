@@ -24,7 +24,7 @@ const SettingMain = class setting_main {
         let szBTLVER = `${v1}.${v2}.${v3}(build: ${dti.bootloader_build})`;
 
         let html = `
-            <div class="flex items-center justify-center flex-col min-h-screen">
+            <div class="flex items-center justify-center flex-col h-[716px]">
                 <div class="flex" id="multi-type">
                     <div class="w-[400px]">
                         <div class="bg-[#343437] rounded-[8px] px-[20px] py-[12px] mb-[12px]">

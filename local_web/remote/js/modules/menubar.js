@@ -16,7 +16,7 @@ const MainMenuBar = class main_menu_bar {
         let i = 0;
         for (i = 0; i < this.menuList.length; i++) {
             szMenu +=
-                "<button class='flex items-center justify-center h-full basis-1/4 text-center hover:text-[16px] hover:text-white hover:border-b-4 hover:border-sky-500";
+                "<button class='flex items-center justify-center h-full basis-1/4 text-center hover:text-[16px]";
             if (i == 0) szMenu += " text-[16px] text-white border-b-4 border-sky-500";
             else szMenu += " text-[14px] text-[#959595]";
             szMenu += `' id='${this.menuList[i].id}'>${this.menuList[i].title}</button>`;

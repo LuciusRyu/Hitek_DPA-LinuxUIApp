@@ -37,6 +37,7 @@ const BroadcastMain = class broadcast_main {
         this.controlESPK_List = [];
         this.volumeSliders = [];
         this.volumeSlideType = 0;
+        this.grid_scroll_pos = 0;
     }
 
     BuildLayout() {
@@ -628,7 +629,24 @@ const BroadcastMain = class broadcast_main {
         }
         if (tmtx == null) return;
         //console.log("_selectMTX: " + this.lastSelection.uuid + ", " + tmtx.mtxInfo.uuid);
-        if (!bForceRefresh && this.lastSelection.uuid == tmtx.mtxInfo.uuid) return;        
+        if (this.lastSelection.uuid == tmtx.mtxInfo.uuid) {
+            if (!bForceRefresh) return;        
+        }
+        else {
+            this.grid_scroll_pos = 0; //MTX바꼈으면 스크롤 위치도 초기화
+            //그룹 선택도 초기화 한다
+            if (this.selectedMtx != null) {
+                let totalSpk = [];
+                for(let eg of this.broadcast.groups) {
+                    let grpSpks = this.selectedMtx.getSpeakersOfGroup(eg);
+                    for(let egs of grpSpks) {
+                        if (totalSpk.indexOf(egs.idx) < 0) totalSpk.push(egs.idx);
+                    }
+                }
+                if(totalSpk.length > 0) this._controlSpeakers(false, totalSpk);            
+            }
+            this.broadcast.groups = [];                                                        
+        }
 
         let dom = gDOM(this.lastSelection.dom_id);
         if (dom != null) dom.style.backgroundColor = COLOR_MULTITAB_NOR;
@@ -1100,8 +1118,8 @@ const BroadcastMain = class broadcast_main {
                         전체 선택
                     </div>
                 </div>
-                <div class="h-[calc(100%-44px-8px)] px-[12px] py-[8px] bg-[#232326] rounded-[8px] overflow-auto custom-scrollbar">
-                    <div class="grid grid-cols-auto-156px gap-[12px]">
+                <div class="h-[calc(100%-44px-8px)] px-[12px] py-[8px] bg-[#232326] rounded-[8px] overflow-auto custom-scrollbar" id="grp_grid_main">
+                    <div class="grid gap-[12px]" style="grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));">
         `;
 
         evtPairList.push({ id: "bdc_out_group_all", fn: this._onGroupSelectAll.bind(this, mtxConn) });
@@ -1263,6 +1281,9 @@ const BroadcastMain = class broadcast_main {
         `;
 
         gDOM("bm_cts_main").innerHTML = html;
+        let dom = gDOM("grp_grid_main");
+        dom.scrollTop = this.grid_scroll_pos;
+        dom.onscroll = this._onGridScroll.bind(this);
         this._startSlice();
         for (let epf of evtPairList) {
             gDOM(epf.id).addEventListener("click", epf.fn);
@@ -1978,7 +1999,10 @@ const BroadcastMain = class broadcast_main {
             tVS.SetValue(vol.volume);
         }
     }
-    
+
+    _onGridScroll() {
+        this.grid_scroll_pos = gDOM('grp_grid_main').scrollTop;        
+    }
 
 };
 
