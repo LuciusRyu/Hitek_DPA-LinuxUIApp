@@ -26,7 +26,7 @@ const RemoteMain = class remote_main {
             <div id='${DIVID_MAINCTS}' class='h-[calc(100%-60px)] p-[12px]'></div>
         </div>
         <div id="${DIVID_MAINCTS_MODAL}"></div>
-        <div class="m-modal" id="${DIVID_WAITING_MODAL}">
+        <div class="m-modal" id="${DIVID_WAITING_MODAL}" style="background-color: rgb(107, 114, 128, 0.3) !important;">
             <div class="m-modal-content">
                 <div class="dark_spinner"></div>
             </div>

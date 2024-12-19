@@ -3,8 +3,9 @@ import { PentaVolumeSlide } from "./penta_volume_slider.js";
 const BRDSTATE_IDLE = 0;
 const BRDSTATE_CHIME_START_WAIT = 1;
 const BRDSTATE_CHIME_START_PLAYING = 2;
-const BRDSTATE_MEDIA_PLAYING = 3;
-const BRDSTATE_CHIME_END_PLAYING = 4;
+const BRDSTATE_CHIME_START_ONLY = 3;
+const BRDSTATE_MEDIA_PLAYING = 4;
+const BRDSTATE_CHIME_END_PLAYING = 5;
 const BRDSTATE_NORMAL_PLAYING = 10;
 const BRDSTATE_EXCHANGE_TX2NORMAL = 11;
 const BRDSTATE_EXCHANGE_TX2MEDIA = 12;
@@ -38,6 +39,9 @@ const BroadcastMain = class broadcast_main {
         this.volumeSliders = [];
         this.volumeSlideType = 0;
         this.grid_scroll_pos = 0;
+        this.input_scroll_pos = 0;
+        this.preReadyState = false;     
+        this.localMediaDOM_IDs = [];   
     }
 
     BuildLayout() {
@@ -229,9 +233,9 @@ const BroadcastMain = class broadcast_main {
 
     _hideModalLayout(state) {
         if (state == "brdMedia") {
-            this._onControlBroadcast();
+            this._onControlBroadcast('stop');
         } else if (state == "brdMic") {
-            this._onControlBroadcast();
+            this._onControlBroadcast('stop');
         } else {
             gDOM("modal-sounds").style.display = "none";
         }
@@ -632,7 +636,7 @@ const BroadcastMain = class broadcast_main {
         if (this.lastSelection.uuid == tmtx.mtxInfo.uuid) {
             if (!bForceRefresh) return;        
         }
-        else {
+        else {            
             this.grid_scroll_pos = 0; //MTX바꼈으면 스크롤 위치도 초기화
             //그룹 선택도 초기화 한다
             if (this.selectedMtx != null) {
@@ -703,13 +707,15 @@ const BroadcastMain = class broadcast_main {
         return null;
     }
 
-    _onControlBroadcast(szId) {
+    _onControlBroadcast(szControl) {
         if (this.broadcast.state == BRDSTATE_IDLE) {
             if (this.selectedMtx == null) return;
             let dom = gDOM("bdc_autochime");
-            let bAutoChime = dom.checked;
+            let bAutoChime = dom.checked;            
+            let bStartChimeOnly = false;
+            if (szControl == 'start_chime_only') bStartChimeOnly = true;
 
-            if (bAutoChime || this.broadcast.stChime || this.broadcast.edChime) {
+            if (bAutoChime || bStartChimeOnly) {
                 //시작/종료 차임 음원 찾기, idx=2, 3 으로 고정
                 if (this.chimeMedia.length < 2) {
                     this.chimeMedia = [];
@@ -739,7 +745,7 @@ const BroadcastMain = class broadcast_main {
             this.broadcast.media_tx = mediaTXC;
             if (this.broadcast.medias.length > 0) {
                 //미디어 재생이면 채널은 1번 채널로 고정
-                this.broadcast.txch = mediaTXC;
+                if (!bStartChimeOnly) this.broadcast.txch = mediaTXC;
             } else {
                 if (this.broadcast.txch == 0) {
                     this._showAlertModal("오류", "입력채널 또는 음원을 선택하세요");
@@ -751,12 +757,13 @@ const BroadcastMain = class broadcast_main {
                 return;
             }
 
-            if (this.broadcast.autoChime || this.broadcast.stChime) {
+            if (this.broadcast.autoChime || bStartChimeOnly) {
                 this.broadcast.state = BRDSTATE_CHIME_START_WAIT;
-                this._rest_controlBroadcast(true, mediaTXC);
+                if(bStartChimeOnly) this.broadcast.state = BRDSTATE_CHIME_START_ONLY;
+                this._rest_controlBroadcast(true, mediaTXC, true);
             } else {
                 this.broadcast.state = BRDSTATE_NORMAL_PLAYING;
-                this._rest_controlBroadcast(true, this.broadcast.txch);
+                this._rest_controlBroadcast(true, this.broadcast.txch, true);
             }
         } else if (this.broadcast.state == BRDSTATE_MEDIA_PLAYING) {
             this._cancelMediaPlayer();
@@ -847,6 +854,10 @@ const BroadcastMain = class broadcast_main {
         if (this.selectedMtx == null) return null;
         if (this.broadcast.state != BRDSTATE_IDLE) return null;
         let dom = gDOM(szDomID);
+        if (dom == null) {
+            console.log("DOM is null: " + szDomID);
+            return null;
+        }
         let exIdx = this.broadcast.groups.indexOf(idx);
         let grpSpks = this.selectedMtx.getSpeakersOfGroup(idx);
         let arrSpks = [];
@@ -863,29 +874,34 @@ const BroadcastMain = class broadcast_main {
         }   
         
         this.selectedMtx.onGroupSelect(idx, bIsEnable);
-        if (isAll != true) this._controlSpeakers(bIsEnable, arrSpks);
+        if (isAll != true) this._controlSpeakers(bIsEnable, arrSpks);        
+        this._onSelectionChange();
         return arrSpks;
     }
 
     _onTXChannelSelect(szDomID, idx) {
         //this.broadcast = {groups: [], txch: 0, medias: [], state: 0};
         if (this.broadcast.state != BRDSTATE_IDLE) return;
-        if (this.broadcast.txch == idx) return;
-        this._disableMediaSelection();
+
         let dom;
-        if (this.broadcast.txch > 0) {
-            let myTX = this.selectedMtx.getMyTXDev();
-            if (this.broadcast.txch === myTX.tx_channels[0].idx) {
-                gDOM("select-mic").classList.remove("custom-click");
-            }
-            else {
+        if (this.broadcast.txch === idx) {            
+            dom = gDOM("bdc_txch_" + this.broadcast.txch);
+            if (dom !== null) dom.classList.remove("custom-click");    
+            this.broadcast.txch = 0;
+        }
+        else {
+            this._disableMediaSelection();
+            let dom;
+            if (this.broadcast.txch > 0) {
                 dom = gDOM("bdc_txch_" + this.broadcast.txch);
                 if (dom !== null) dom.classList.remove("custom-click");    
-            }    
+                gDOM("select-mic").classList.remove("custom-click"); 
+            }
+            dom = gDOM(szDomID);
+            dom.classList.add("custom-click");
+            this.broadcast.txch = idx;
         }
-        dom = gDOM(szDomID);
-        dom.classList.add("custom-click");
-        this.broadcast.txch = idx;
+        this._onSelectionChange();
     }
 
     _genMediaURI(bIsLocal, mediaObj) {
@@ -928,6 +944,7 @@ const BroadcastMain = class broadcast_main {
             this.broadcast.medias.splice(exIdx, 1);
             dom.classList.remove("custom-click");
         }
+        this._onSelectionChange();
     }
 
     _onMediaSelect2(bIsLocal, mediaObj) {
@@ -978,7 +995,7 @@ const BroadcastMain = class broadcast_main {
     _refreshMTX(mtxConn) {
         let mtx = mtxConn.getMainTXDev();
         let uartStates = this.generateUARTState(mtxConn);
-        let brdState = this.generateBRDState(mtxConn);
+        let brdCountList = this.generateBRDState(mtxConn);
         let epf = null;
 
         this.selectedMtx = mtxConn;
@@ -1037,17 +1054,19 @@ const BroadcastMain = class broadcast_main {
         szState += `
             <div class="h-[380px] rounded-[8px] p-[12px] bg-[#232326]">
                 <div class="flex items-center justify-center">
-                    <span class="text-[18px] font-bold">방송</span>
+                    <span class="text-[18px] font-bold">방송정보</span>
                 </div>
                 <div class="flex flex-col justify-evenly h-[170px] mt-[8px] bg-[#343437] rounded-[8px] px-[20px] py-[10px]">
         `;
 
-        for (let i = 0; i < brdState.length; i++) {
-            if (brdState[i].title === "긴급방송" && brdState[i].count === 0) continue;
+        for (let i = 0; i < brdCountList.length; i++) {
+            if (brdCountList[i].title === "긴급방송" && brdCountList[i].count === 0) continue;            
+            let clsStr = "flex justify-between rounded-[8px] px-[10px]";
+            if (brdCountList[i].count > 0) clsStr += " bg-[" +  brdCountList[i].szColor + "]";
             szState += `
-                <div class="flex justify-between">
-                    <div>${brdState[i].title}</div>
-                    <div>${brdState[i].count}</div>
+                <div class="${clsStr}">
+                    <div>${brdCountList[i].title}</div>
+                    <div>${brdCountList[i].count}</div>
                 </div>
             `;
         }
@@ -1062,7 +1081,7 @@ const BroadcastMain = class broadcast_main {
                     id="bdc_startstop"
                     class="w-full h-[52px] inline-flex items-center justify-center text-[18px] bg-[#454548] rounded-[8px]"
                 >
-                    방송 시작
+                    방송 대기
                 </button>
             </div>
         `;
@@ -1199,7 +1218,7 @@ const BroadcastMain = class broadcast_main {
         let scTXCMedia = `
             <aside class="flex-none w-[160px]">
                 <div class="flex justify-center items-center h-[44px] mb-[8px] rounded-[8px] text-[18px] font-bold">입력</div>
-                    <div class="h-[calc(100%-44px-8px)] px-[8px] bg-[#232326] rounded-[8px] overflow-auto custom-scrollbar">
+                    <div class="h-[calc(100%-44px-8px)] px-[8px] bg-[#232326] rounded-[8px] overflow-auto custom-scrollbar" id="input_list_main">
                         <div class="pt-[8px]">
                             <button
                                 id="show-sound-modal-btn"
@@ -1238,11 +1257,13 @@ const BroadcastMain = class broadcast_main {
             evtPairList.push(epf);
         }
 
+        this.localMediaDOM_IDs = [];
         if (this.localMedias != null) {
             scTXCMedia += `<div class="pt-[8px] border-b-[3px] border-dashed border-[#757575]"></div>`;
             for (let m of this.localMedias) {
                 if (m.remote_idx < 5) continue; //차임은 표시하지 않는다
                 let tid = "bdc_media_select_local_" + m.uniq_seq + "_" + m.seq;
+                this.localMediaDOM_IDs.push(tid);
                 let epf = { id: tid, fn: this._onMediaSelect.bind(this, tid, true, m) };
 
                 let gSelected = "";
@@ -1284,17 +1305,25 @@ const BroadcastMain = class broadcast_main {
         let dom = gDOM("grp_grid_main");
         dom.scrollTop = this.grid_scroll_pos;
         dom.onscroll = this._onGridScroll.bind(this);
+        dom = gDOM("input_list_main");
+        dom.scrollTop = this.input_scroll_pos;
+        dom.onscroll = this._onInputScroll.bind(this);
+
         this._startSlice();
         for (let epf of evtPairList) {
             gDOM(epf.id).addEventListener("click", epf.fn);
         }
+        this.preReadyState = false;
+        this._onSelectionChange();
     }
 
     generateUARTState(mtxConn) {
         let res = new Array();                
         for(let eu of mtxConn.uart_list) {
             let iCnt = 0;
+            //console.log("generateUARTState: " + JSON.stringify(eu));
             for(let eg of eu.emrGroups) {
+                //if (eu.port > 1) console.log(eg.extra1);
                 if (eg.extra1 == 'AUTO' || eg.extra1 == 'MANUAL') {        
                     let tArr = {name: eu.name, state: eg.name, txtColor: '#FFFFFF', bgColor: '#FF7F00'};
                     if (eu.port == 1) {
@@ -1361,15 +1390,15 @@ const BroadcastMain = class broadcast_main {
                 }
             }
         }
-        res.push({ title: "일반방송", count: main_count });
-        res.push({ title: "긴급방송", count: emg_count });
-        res.push({ title: "BGM방송", count: bgm_count });
-        res.push({ title: "PC방송", count: etc_count });
-        res.push({ title: "리모트방송", count: remote_count });
+        res.push({ title: "일반방송", count: main_count, szColor: '#2b86ff' });
+        res.push({ title: "긴급방송", count: emg_count, szColor: '#ff4040' });
+        res.push({ title: "BGM방송", count: bgm_count, szColor: '#70ad47' });
+        res.push({ title: "PC방송", count: etc_count, szColor: '#002060' });
+        res.push({ title: "리모트방송", count: remote_count, szColor: '#ffc000' });
         return res;
     }
 
-    _rest_controlBroadcast(bStart, txch) {
+    _rest_controlBroadcast(bStart, txch, bResetOutput) {
         if (this.selectedMtx == null) return;
         if (bStart) {
             let payload = { control: "start", txc: txch, groups: this.broadcast.groups };
@@ -1395,7 +1424,9 @@ const BroadcastMain = class broadcast_main {
                         dom = gDOM("hide_mic_modal");                        
                     }
 
-                    if (this._isBrdMedia() || this.broadcast.state == BRDSTATE_CHIME_START_WAIT) {
+                    if (this._isBrdMedia() 
+                        || this.broadcast.state == BRDSTATE_CHIME_START_WAIT
+                        || this.broadcast.state == BRDSTATE_CHIME_START_ONLY ) {
                         this.broadcast.gpio_signals.push({pin: GPIOSIGNAL_MEDIA, value: 0}); //반대다
                     }
                     else {
@@ -1408,10 +1439,10 @@ const BroadcastMain = class broadcast_main {
                     console.log("GPIO2: " + JSON.stringify(jsGpio.payload));
                     this.funcCallNative(JSON.stringify(jsGpio));
             
-                    if (this.broadcast.state == BRDSTATE_CHIME_START_WAIT) {
+                    if (this.broadcast.state == BRDSTATE_CHIME_START_WAIT || this.broadcast.state == BRDSTATE_CHIME_START_ONLY) {
                         //시작 차임 재생 대기
                         dom.innerText = "시작 차임 재생중...";
-                        this.broadcast.state = BRDSTATE_CHIME_START_PLAYING;
+                        if (this.broadcast.state != BRDSTATE_CHIME_START_ONLY) this.broadcast.state = BRDSTATE_CHIME_START_PLAYING;                        
                         this._setMediaPlayer(this.chimeMedia[0]);
                     } else if (this.broadcast.state == BRDSTATE_NORMAL_PLAYING) {
                         //즉시 재생
@@ -1435,7 +1466,7 @@ const BroadcastMain = class broadcast_main {
                         this._onBroadCastStartFailed(jsRecv.error);
                         return;
                     }
-                    this._finalizeBroadcast();
+                    this._finalizeBroadcast(bResetOutput);
                 }.bind(this)
             );
         }
@@ -1561,7 +1592,7 @@ const BroadcastMain = class broadcast_main {
             if (isNext === null) {
                 this.mediaPlayCount++;
                 if (this.mediaPlayCount >= this.broadcast.medias.length) {
-                    if (this.broadcast.autoChime || this.broadcast.edChime) {
+                    if (this.broadcast.autoChime) {
                         dom.innerText = "종료 차임 재생중...";
                         this.broadcast.state = BRDSTATE_CHIME_END_PLAYING; //종료차임 재생 대기
                         this._setMediaPlayer(this.chimeMedia[1]);
@@ -1581,7 +1612,7 @@ const BroadcastMain = class broadcast_main {
                 }
                 this._setMediaPlayer(this.broadcast.medias[this.mediaPlayCount]);
             }
-        } else if (this.broadcast.state == BRDSTATE_CHIME_END_PLAYING) {
+        } else if (this.broadcast.state == BRDSTATE_CHIME_END_PLAYING || this.broadcast.state == BRDSTATE_CHIME_START_ONLY) {
             //종료차임 재생 완료
             this._onBroadcastDone(true);
         }
@@ -1594,10 +1625,12 @@ const BroadcastMain = class broadcast_main {
             gDOM("i_modal_list_time").textContent = "진행시간 : 00:00";
         }
 
+        let bReset = true;
+        if (this.broadcast.state == BRDSTATE_CHIME_START_ONLY) bReset = false;
         this.broadcast.state = BRDSTATE_FINISHING;
         this._setMediaPlayer(null);
-        if (bCallRest) this._rest_controlBroadcast(false, this.broadcast.txch);
-        else this._finalizeBroadcast();
+        if (bCallRest) this._rest_controlBroadcast(false, this.broadcast.txch, bReset);
+        else this._finalizeBroadcast(bReset);
     }
 
     _isBrdMedia() {
@@ -1606,39 +1639,21 @@ const BroadcastMain = class broadcast_main {
     }
 
     _onChime(szId) {
-        let dom = gDOM(szId);
-
-        if (dom.classList.contains("custom-click")) {
-            if (szId === "bdc_chime_st") this.broadcast.stChime = false;
-            else if (szId === "bdc_chime_ed") this.broadcast.edChime = false;
-            dom.classList.remove("custom-click");
-        } else {
-            if (szId === "bdc_chime_st") this.broadcast.stChime = true;
-            else if (szId === "bdc_chime_ed") this.broadcast.edChime = true;
-            dom.classList.add("custom-click");
-        }
-
-        if (gDOM("bdc_chime_st").classList.contains("custom-click") && gDOM("bdc_chime_ed").classList.contains("custom-click")) {
-            gDOM("bdc_autochime").checked = true;
-            this.broadcast.autoChime = true;
-        } else {
-            gDOM("bdc_autochime").checked = false;
-            this.broadcast.autoChime = false;
-        }
+        if (szId != "bdc_chime_st") return;
+        if (this.preReadyState != true) return;
+        if (this.broadcast.autoChime) return;
+        this._onControlBroadcast('start_chime_only');
     }
 
     _autoChime() {
-        this._onChime("bdc_chime_st");
-        this._onChime("bdc_chime_ed");
-
         if (gDOM("bdc_autochime").checked) {
             this.broadcast.autoChime = true;
-            gDOM("bdc_chime_st").classList.add("custom-click"); // 시작
-            gDOM("bdc_chime_ed").classList.add("custom-click"); // 종료
+            gDOM("bdc_chime_st").classList.remove("custom-click"); // 시작
+            //gDOM("bdc_chime_ed").classList.add("custom-click"); // 종료
         } else {
             this.broadcast.autoChime = false;
-            gDOM("bdc_chime_st").classList.remove("custom-click"); // 시작
-            gDOM("bdc_chime_ed").classList.remove("custom-click"); // 종료
+            if (this.preReadyState) gDOM("bdc_chime_st").classList.add("custom-click"); // 시작
+            //gDOM("bdc_chime_ed").classList.remove("custom-click"); // 종료
         }
     }
 
@@ -1697,9 +1712,9 @@ const BroadcastMain = class broadcast_main {
         gDOM('hide_alert_modal').addEventListener("click", this._hideModalLayout.bind(this));
     }    
 
-    _finalizeBroadcast() {
+    _finalizeBroadcast(bResetOutput) {
         let dom = gDOM("bdc_startstop");
-        dom.innerText = "방송 시작";
+        dom.innerText = "방송 대기";
         this.broadcast.state = BRDSTATE_IDLE;
         if (this.broadcast.gpio_signals.length > 0) {
             for(let g of this.broadcast.gpio_signals) {
@@ -1707,28 +1722,35 @@ const BroadcastMain = class broadcast_main {
                 else g.value = 0;            
             }
             let jsGpio = { act: 'SET_GPIO_VALUES', payload: {pins: this.broadcast.gpio_signals} };        
-            console.log("GPIO4: " + JSON.stringify(jsGpio.payload));
+            //console.log("GPIO4: " + JSON.stringify(jsGpio.payload));
             this.funcCallNative(JSON.stringify(jsGpio));
             this.broadcast.gpio_signals = [];
         }
         //방송이 종료되면 LRX가 다 꺼지기 때문에 출력 선택을 자동으로 해제한다
         if (this.selectedMtx != null) {
-            for(let eg of this.broadcast.groups) {
-                this.selectedMtx.onGroupSelect(eg, false);
+            if (bResetOutput) {
+                for(let eg of this.broadcast.groups) {
+                    this.selectedMtx.onGroupSelect(eg, false);
+                }
+                this.broadcast.groups = [];
+                this._refreshMTX(this.selectedMtx);
             }
-            this.broadcast.groups = [];
-            this._refreshMTX(this.selectedMtx);
+            else {
+                //방송종료되면 LRX가 자동으로 꺼지기 때문에 강제로 한번 더 켠다
+                let oldGrps = [...this.broadcast.groups];
+                setTimeout(this._reSelectGroups.bind(this, oldGrps), 500); //0.5초 후에 그룹 선택 강제하기
+            }
         }
     }
 
     _selectMIC(mtxConn) {
         let myTX = mtxConn.getMyTXDev();
 
-        if (this._isBrdMedia() != true && this.broadcast.txch === myTX.tx_channels[0].idx) {
+        if (this.broadcast.txch === myTX.tx_channels[0].idx) {
             gDOM("select-mic").classList.remove("custom-click");
-            this.broadcast.txch = 0;
+            this.broadcast.txch = 0;            
         }
-        else {            
+        else {
             this._disableMediaSelection();
             if (this.broadcast.txch > 0) {
                 let dom = gDOM("bdc_txch_" + this.broadcast.txch);
@@ -1737,7 +1759,8 @@ const BroadcastMain = class broadcast_main {
 
             gDOM("select-mic").classList.add("custom-click");
             this.broadcast.txch = myTX.tx_channels[0].idx;
-        }            
+        }
+        this._onSelectionChange();
     }
 
     _disableMediaSelection() {
@@ -1747,12 +1770,9 @@ const BroadcastMain = class broadcast_main {
         dom.innerText = "음원";
 
         //로컬 음원 모두 해제
-        if (this.localMedias != null) {            
-            for (let m of this.localMedias) {
-                if (m.remote_idx < 5) continue; //차임은 표시하지 않는다
-                dom = gDOM("bdc_media_select_local_" + m.mtx_uuid + "_" + m.seq);
-                if (dom !== null) dom.classList.remove("custom-click");
-            }
+        for (let m of this.localMediaDOM_IDs) {            
+            dom = gDOM(m);
+            if (dom !== null) dom.classList.remove("custom-click");
         }
     }
 
@@ -1760,55 +1780,55 @@ const BroadcastMain = class broadcast_main {
         let szMsg = "오류코드: " + szErr;
         if (szErr == "ERROR CASTORDER HIGHER EXIST") szMsg = "선택한 채널에 더 높은 우선순위의 방송이 이미 진행 중입니다.";
         this._showAlertModal("방송제어 실패", "방송 시작 요청이 실패하였습니다.<br/>" + szMsg);
-        this._finalizeBroadcast();
+        this._finalizeBroadcast(false);
     }
 
-  //개별 앰프 제어
-  _controlSpeakers(bIsEnable, spkIdxList) {
-    let preDev = null;
-    let ctrlList = [];
-    let tch = null;
-    let spk = null;
+    //개별 앰프 제어
+    _controlSpeakers(bIsEnable, spkIdxList) {
+        let preDev = null;
+        let ctrlList = [];
+        let tch = null;
+        let spk = null;
 
-    if (this.selectedMtx == null) return;
-    
-    for(let spkIdx of spkIdxList) {
-      let tdev = this.selectedMtx.getDeviceBySpeakerIdx(spkIdx);          
-      if (tdev == null) continue;    
-      tch = null;
-      spk = null;
-      for (let ec of tdev.rx_channels) {
-        for (let es of ec.speakers) {
-          if (es.idx == spkIdx) {
-            tch = ec;
-            spk = es;
-            break;
-          }
+        if (this.selectedMtx == null) return;
+        
+        for(let spkIdx of spkIdxList) {
+        let tdev = this.selectedMtx.getDeviceBySpeakerIdx(spkIdx);          
+        if (tdev == null) continue;    
+        tch = null;
+        spk = null;
+        for (let ec of tdev.rx_channels) {
+            for (let es of ec.speakers) {
+            if (es.idx == spkIdx) {
+                tch = ec;
+                spk = es;
+                break;
+            }
+            }
+            if (tch != null) break;        
+        }  
+        if (tch == null || spk == null) {
+            console.error("Invalid speaker.. " + spkIdx);
+            return;
         }
-        if (tch != null) break;        
-      }  
-      if (tch == null || spk == null) {
-        console.error("Invalid speaker.. " + spkIdx);
-        return;
-      }
 
-      //console.log(`SpkIdx=${spkIdx}, ch=${tch.order}, code1=${spk.code1}, code2=${spk.code2}`);
-      if (tdev != preDev) {
-        if (preDev != null && ctrlList.length > 0) {
-          this.controlESPK_List.push({enable: bIsEnable, dev_name: preDev.name, speakers: ctrlList});
+        //console.log(`SpkIdx=${spkIdx}, ch=${tch.order}, code1=${spk.code1}, code2=${spk.code2}`);
+        if (tdev != preDev) {
+            if (preDev != null && ctrlList.length > 0) {
+            this.controlESPK_List.push({enable: bIsEnable, dev_name: preDev.name, speakers: ctrlList});
+            }
+            preDev = tdev;
+            ctrlList = [];
         }
-        preDev = tdev;
-        ctrlList = [];
-      }
-      ctrlList.push({idx: spkIdx, ch_order: tch.order, amp_order: spk.order, code1: spk.code1, code2: spk.code2});
+        ctrlList.push({idx: spkIdx, ch_order: tch.order, amp_order: spk.order, code1: spk.code1, code2: spk.code2});
+        }
+
+        if (ctrlList.length > 0) {
+            this.controlESPK_List.push({enable: bIsEnable, dev_name: preDev.name, speakers: ctrlList});
+            showWaitModal(true);
+            this._callControlSpeaker();
+        }        
     }
-
-    if (ctrlList.length > 0) {
-      this.controlESPK_List.push({enable: bIsEnable, dev_name: preDev.name, speakers: ctrlList});
-      showWaitModal(true);
-      this._callControlSpeaker();
-    }        
-  }
 
     _callControlSpeaker() {    
         if (this.controlESPK_List.length > 0) {
@@ -2002,6 +2022,49 @@ const BroadcastMain = class broadcast_main {
 
     _onGridScroll() {
         this.grid_scroll_pos = gDOM('grp_grid_main').scrollTop;        
+    }
+
+    _onInputScroll() {
+        this.input_scroll_pos = gDOM('input_list_main').scrollTop;        
+    }
+
+    _onSelectionChange() {        
+        if (this.selectedMtx == null) return;
+
+        let bCastOK = true;
+
+        if (this.broadcast.medias.length < 1 && this.broadcast.txch == 0) bCastOK = false;        
+        if (this.broadcast.groups.length < 1) bCastOK = false;
+
+        if (this.preReadyState == bCastOK) return;
+        this.preReadyState = bCastOK;
+
+        let dom = gDOM("bdc_startstop");
+        let doms = gDOM("bdc_chime_st");        
+        if (bCastOK) {            
+            dom.innerText = "방송 시작";
+            dom.classList.add("custom-click");
+            if (this.broadcast.autoChime != true) doms.classList.add("custom-click");
+        }
+        else {
+            dom.innerText = "방송 대기";
+            dom.classList.remove("custom-click");
+            doms.classList.remove("custom-click");
+        }
+    }
+
+    _reSelectGroups(grps) {
+        console.log("Reset output called!!!");
+        console.log(JSON.stringify(grps));
+        if (this.selectedMtx == null) return;
+        let spkList = [];
+        for (let g of grps) {
+            let tid = "bdc_group_list_" + g;          
+            let tSpks = null;
+            if(this.broadcast.groups.indexOf(g) < 0) tSpks = this._onGroupSelect(tid, g, true);
+            if (tSpks != null) spkList = [...spkList, ...tSpks];
+        }
+        if (spkList.length > 0) this._controlSpeakers(true, spkList);        
     }
 
 };

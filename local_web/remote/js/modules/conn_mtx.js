@@ -541,6 +541,7 @@ const MainTXConnector = class main_tx_connector {
             }
             this._refreshUARTList();
             this._checkAndReport();
+            this._rest_getSysState();            
         }.bind(this));
     }
 
@@ -668,6 +669,28 @@ const MainTXConnector = class main_tx_connector {
             if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "group_list");
         }.bind(this));
     }
+
+    _rest_getSysState() {        
+        this.rest_call('get_sys_state', 'NONE', null, function (bRes, jsRecv, callParam) {
+            if (!bRes) {
+                console.error("_rest_getSysState: Server error");
+                return;
+            }
+            if (jsRecv.res != true) {
+                console.log("Get sys state failed..." + jsRecv.error);
+                console.log(JSON.stringify(jsRecv));
+                return;
+            }
+            let pld = jsRecv.payload;
+            for (let ep of jsRecv.payload) {
+                if (ep.name == 'uart_state') {
+                    //console.log("UART State = " + ep.value);
+                    this._refreshUARTState(ep.value);
+                }
+            }
+        }.bind(this));
+    }
+
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -825,7 +848,7 @@ const MainTXConnector = class main_tx_connector {
         } 
         else if(jsV.act == 'update_notify') {
             let szTarget = jsV.payload.target;
-            //console.log("update_notify: " + szTarget);
+            console.log("update_notify: " + szTarget);
             if (szTarget == 'device') { //장치 상태가 변경됨.. 걍 업뎃
                 this._rest_getDevList(true);                
             }
@@ -848,6 +871,7 @@ const MainTXConnector = class main_tx_connector {
             }            
             else if (szTarget == 'uart_state') { //긴급 방송 정보
                 if (jsV.payload.type == 'update') {
+                    this._rest_getEMRGroups();
                     this._refreshUARTState(jsV.payload.detail);
                 }
                 else console.error("Unknown uart_state type: " + jsV.payload.type);
@@ -866,6 +890,9 @@ const MainTXConnector = class main_tx_connector {
                     console.log('Rumtime memory updated detail = ' + jsV.payload.detail);
                     console.log(jsV.payload);  
                 }          
+            }
+            else if (szTarget == 'config') {
+                this._rest_getSysConfig();
             }
             else console.log("unknown update_notify: " + jsV.payload.target);
         }
@@ -933,7 +960,7 @@ const MainTXConnector = class main_tx_connector {
                 bRemoved = false;
                 for(let spkIdx of this.selectedSpeakers) { 
                     if(arrEnabledSpeakers.indexOf(spkIdx) < 0) {
-                        console.log("My speaker is not in list: " + spkIdx);
+                        //console.log("My speaker is not in list: " + spkIdx);
                         let remIdx = this.selectedSpeakers.indexOf(spkIdx);
                         if (remIdx >= 0) this.selectedSpeakers.splice(remIdx, 1);
                         bRemoved = true;
