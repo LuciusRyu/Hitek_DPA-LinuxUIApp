@@ -35,6 +35,8 @@ const MainTXConnector = class main_tx_connector {
 
         this.monitoringList = new Array();
         this.monitoringList.push({user: -1, bStart: false, tx_CH_idx: 0, rx_DEV_idx: 0, bForAMP: false, waitForDISP: 0});
+
+        this.lrxErrorList = new Array();
     }
 
     checkID(mtxInfo) {
@@ -222,21 +224,24 @@ const MainTXConnector = class main_tx_connector {
         let okCnt = 0;
         let disCnt = 0;
         let abnCnt = 0;
-        for (let i2 = 0; i2 < this.devList.length; i2++) {      
-            for (let i3 = 0; i3 < this.devList[i2].rx_channels.length; i3++) {
-                let rxc = this.devList[i2].rx_channels[i3];
+        for (let edev of this.devList) {      
+            for (let rxc of edev.rx_channels) {                
                 if (rxc.speakers == null) continue;
-                for (let i4 = 0; i4 < rxc.speakers.length; i4++) {
-                    if (rxc.speakers[i4].groups.indexOf(iGrpId) >= 0) {
-                        let tstate = this.devList[i2].state;
+                for (let espk of rxc.speakers) {
+                    if (espk.groups.indexOf(iGrpId) >= 0) {
+                        let tstate = edev.state;
                         totalCnt++;
                         if(tstate == 'DISCONNECTED') {
                             disCnt++;                            
                         }
                         else {
                             if (tstate == 'CONNECTED' || tstate == 'NORMAL') {
-                                if (rxc.state.status == 'NORMAL') okCnt++; //채널 상태도 검사
-                                else abnCnt++;
+                                //스피커 연결 상태 검사
+                                if (this.checkSpeakerIsInError(espk.idx)) abnCnt++;
+                                else {
+                                    if (rxc.state.status == 'NORMAL') okCnt++; //채널 상태도 검사
+                                    else abnCnt++;
+                                }
                             }
                             else {
                                 abnCnt++;
@@ -403,6 +408,15 @@ const MainTXConnector = class main_tx_connector {
     getMonitoringInfo() {
         return this.monitoringList[0];
     }
+
+    getDeviceByIdx(iIdx) {
+        if(this.devList == null) return null;
+        for (let dev of this.devList) {
+            if (dev.idx == iIdx) return dev;
+        }
+        return null;
+    }
+
     
     _checkAndReport() {        
         if (this.state == 1) {
@@ -561,6 +575,7 @@ const MainTXConnector = class main_tx_connector {
             }
             this._refreshUARTList();
             this._checkAndReport();
+            if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "emrg_list");
         }.bind(this));
     }
 
@@ -685,7 +700,7 @@ const MainTXConnector = class main_tx_connector {
             for (let ep of jsRecv.payload) {
                 if (ep.name == 'uart_state') {
                     //console.log("UART State = " + ep.value);
-                    this._refreshUARTState(ep.value);
+                    this._refreshUARTState(ep.value, true);
                 }
             }
         }.bind(this));
@@ -761,7 +776,7 @@ const MainTXConnector = class main_tx_connector {
     }
 
 
-    _refreshUARTState(szState) {
+    _refreshUARTState(szState, bUpdateScreen) {
         let i;
 
         //console.log("_RefreshUARTState: " + szState);
@@ -789,7 +804,7 @@ const MainTXConnector = class main_tx_connector {
             }
         }
         this._refreshUARTList();
-        if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "uart_list");
+        if (bUpdateScreen && this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "uart_list");
     }
     
     
@@ -845,10 +860,11 @@ const MainTXConnector = class main_tx_connector {
             //상태 가져오기
             this._requestRuntimeValue('spk_state');
             this._requestRuntimeValue('monitor_state');
+            this._requestRuntimeValue('lrx_error_state');
         } 
         else if(jsV.act == 'update_notify') {
             let szTarget = jsV.payload.target;
-            console.log("update_notify: " + szTarget);
+            //console.log("update_notify: " + szTarget);
             if (szTarget == 'device') { //장치 상태가 변경됨.. 걍 업뎃
                 this._rest_getDevList(true);                
             }
@@ -870,9 +886,9 @@ const MainTXConnector = class main_tx_connector {
                 this._rest_getMediaList(true);
             }            
             else if (szTarget == 'uart_state') { //긴급 방송 정보
-                if (jsV.payload.type == 'update') {
+                if (jsV.payload.type == 'update') {                    
+                    this._refreshUARTState(jsV.payload.detail, false);
                     this._rest_getEMRGroups();
-                    this._refreshUARTState(jsV.payload.detail);
                 }
                 else console.error("Unknown uart_state type: " + jsV.payload.type);
             }        
@@ -886,6 +902,9 @@ const MainTXConnector = class main_tx_connector {
                 else if(jsV.payload.detail == 'monitor_state') { //모니터링 상태가 업데이트 됨
                     this._requestRuntimeValue('monitor_state');
                 }          
+                else if(jsV.payload.detail == 'lrx_error_state') {
+                    this._requestRuntimeValue('lrx_error_state');
+                }
                 else {
                     console.log('Rumtime memory updated detail = ' + jsV.payload.detail);
                     console.log(jsV.payload);  
@@ -913,6 +932,11 @@ const MainTXConnector = class main_tx_connector {
                 //console.log("Monitor state updated");
                 //console.log(pld.memVal);  
                 this._processingMonitoringList(pld.memVal);
+            }     
+            else if (pld.memKey == 'lrx_error_state') {
+                //console.log("Monitor state updated");
+                //console.log(pld.memVal);  
+                this._processingLRXErrList(pld.memVal);                
             }        
             else {
                 console.log("Unknown key value");
@@ -1035,6 +1059,42 @@ const MainTXConnector = class main_tx_connector {
         }
         return bChanged;
     }
+
+    _processingLRXErrList(errList) {
+        if(errList == null) return;
+        //초기에 이 목록을 먼저 받아오면 devList가 비어 있다. 따라서 일정 시간 이후에 다시 시도한다    
+        if (this.state > 0 && this.state < 10) {
+          setTimeout(this._processingLRXErrList.bind(this, errList), 100);
+          return;
+        }
+    
+        this.lrxErrorList = new Array();
+        for(let ee of errList) {
+          let devIdx = parseInt(ee.dev_idx);
+          let speakerList = [];
+          let tdev = this.getDeviceByIdx(devIdx);
+          if(tdev != null) {
+            for(let ec of tdev.rx_channels) {
+              for(let es of ec.speakers) {
+                if(es.code1 == ee.id) speakerList.push(es.idx);
+              }
+            }
+          }
+    
+          let nEr = {dev_idx: devIdx, dev_name: ee.dev_name, code1: ee.id, speakerIdxs: speakerList};
+          this.lrxErrorList.push(nEr);
+        }           
+
+        if (this.funcEventCallback != null) this.funcEventCallback(EVTSTR_MTX_DATA_UPDATED, this, "speaker_state");
+    }
+
+    checkSpeakerIsInError(spkIdx) {
+        for(let ee of this.lrxErrorList) {
+          if(ee.speakerIdxs.indexOf(spkIdx) >= 0) return true;
+        }
+        return false;
+    }
+    
 
 }
 

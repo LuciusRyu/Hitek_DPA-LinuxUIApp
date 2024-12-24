@@ -1,1 +1,1 @@
-let g_code_version_remote = 6;
+let g_code_version_remote = 7;

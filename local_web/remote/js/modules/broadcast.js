@@ -121,20 +121,30 @@ const BroadcastMain = class broadcast_main {
                 return;
             }
 
-            if (jsV.changed == "device_list" || jsV.changed == "group_list" || jsV.changed == "media_list" || jsV.changed == "uart_list" || jsV.changed == "enabled_speakers") {
+            switch(jsV.changed)
+            {
+            case 'device_list':
+            case 'group_list':
+            case 'media_list':
+            case 'uart_list':
+            case 'enabled_speakers':
+            case 'emrg_list':
+            case 'monitoring_state':
+            case 'speaker_state':
                 if (this.lastSelection.uuid == jsV.mtxConn.mtxInfo.uuid) {
                     console.log("Need to update screen");
                     this._refreshMTX(jsV.mtxConn);
                 }
-            }
-            else if (jsV.changed == "broadcast_list") {
-                if (this.lastSelection.uuid == jsV.mtxConn.mtxInfo.uuid) {                    
+                break;
+            case 'broadcast_list':
+                if (this.lastSelection.uuid == jsV.mtxConn.mtxInfo.uuid) {
                     this._refreshMTX(jsV.mtxConn);                    
                     this._checkBroadcastList();
                 }
-            }
-            else {
+                break;
+            default:
                 console.error("Unknown changed data: " + jsV.changed);
+                break;
             }
         } else {
             console.error("Unknown connector event!!!: " + szEvt);
@@ -1319,12 +1329,25 @@ const BroadcastMain = class broadcast_main {
 
     generateUARTState(mtxConn) {
         let res = new Array();                
+        //console.log("generateUARTState");
+        //발생한 방송이 하나라도 있으면 연결 상태는 보여주지 않는다
+        let bShowConnState = true;
+        for(let eu of mtxConn.uart_list) {
+            for(let eg of eu.emrGroups) {
+                if (eg.extra1 == 'AUTO' || eg.extra1 == 'MANUAL') {      
+                    bShowConnState = false;
+                    break;
+                }
+            }
+        }
+
         for(let eu of mtxConn.uart_list) {
             let iCnt = 0;
             //console.log("generateUARTState: " + JSON.stringify(eu));
             for(let eg of eu.emrGroups) {
                 //if (eu.port > 1) console.log(eg.extra1);
-                if (eg.extra1 == 'AUTO' || eg.extra1 == 'MANUAL') {        
+                if (eg.extra1 == 'AUTO' || eg.extra1 == 'MANUAL') {      
+                    //console.log("Occured state: " + eg.extra1);
                     let tArr = {name: eu.name, state: eg.name, txtColor: '#FFFFFF', bgColor: '#FF7F00'};
                     if (eu.port == 1) {
                         tArr.bgColor = '#FF0000';
@@ -1334,7 +1357,7 @@ const BroadcastMain = class broadcast_main {
                 }
             }
 
-            if (iCnt < 1) {
+            if (iCnt < 1 && bShowConnState) {
                 let tArr = {name: eu.name, state: '정상', txtColor: '#FFFFFF', bgColor: '#343437'};
                 let spl = eu.info.split('__');
                             
