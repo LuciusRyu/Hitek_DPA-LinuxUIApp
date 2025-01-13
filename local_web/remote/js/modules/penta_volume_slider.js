@@ -3,6 +3,7 @@ const PentaVolumeSlide = class penta_volume_slide {
         this.ID = szParentID;
         this.btnID = szParentID + "_sld_btn";
         this.fillID = szParentID + "_sld_fill";
+        this.szAreaID = null;
         this.realSize = 0;
         this.slideSize = 0;
         this.btnSize = 0;
@@ -11,6 +12,7 @@ const PentaVolumeSlide = class penta_volume_slide {
         this.btnPrePos = 0;
         this.btnPreVal = 0;
         this.parentDom = null;
+        this.areaDom = null;
         this.onChangeCB = null;
         this.type = type;
 
@@ -19,18 +21,26 @@ const PentaVolumeSlide = class penta_volume_slide {
     }
 
     _onMouseDown(event) {
-        if (this.parentDom == null) return;
+        if (this.areaDom == null) return;        
+        let wsArea = this.areaDom.getBoundingClientRect();
         let wsRect = this.parentDom.getBoundingClientRect();
-        if (!(event.clientX > wsRect.left && event.clientX < wsRect.right && event.clientY > wsRect.top && event.clientY < wsRect.bottom))
-            return;
-
+        if (
+          !(
+            event.clientX > wsArea.left &&
+            event.clientX < wsArea.right &&
+            event.clientY > wsRect.top &&
+            event.clientY < wsRect.bottom
+          )
+        )
+          return;
+    
         let tY = event.clientY - wsRect.top;
         if (tY < this.btnSize / 2) tY = 0;
         else tY -= this.btnSize / 2;
         let tV = 1.0 - tY / this.slideSize;
         if (tV < 0) tV = 0;
         if (tV > 1.0) tV = 1.0;
-
+    
         this.btnPrePos = event.clientY;
         this.btnPreVal = tV;
         this._SetValue(tV);
@@ -50,10 +60,26 @@ const PentaVolumeSlide = class penta_volume_slide {
         this._SetValue(this.btnPreVal - gap);
     }
 
+    _onMouseOut(event) {    
+        let wsArea = this.areaDom.getBoundingClientRect();    
+        if (event.clientX > wsArea.left && event.clientX < wsArea.right && event.clientY > wsArea.top && event.clientY < wsArea.bottom)
+        {
+            //여전히 영역 내부에 있다.
+            return;
+        }    
+
+        if (this.btnDown) {
+            if (this.onChangeCB != null) this.onChangeCB(this.ID, this.curValue);
+        }
+        this.btnDown = false;
+    }
+
+
     _resetAll() {
         let dom = document.getElementById(this.ID);
         if (dom == null) return;
         this.parentDom = dom;
+        this.areaDom = dom;
 
         let pstyle = getComputedStyle(dom);
         let pH = parseInt(pstyle.height, 10);
@@ -89,9 +115,21 @@ const PentaVolumeSlide = class penta_volume_slide {
 
         dom.innerHTML = html;
         dom.onresize = this._resetAll.bind(this);
+        if (this.szAreaID != null) {
+            let tDom = gDOM(this.szAreaID);      
+            if (tDom == null) {
+                console.error("Area dom is null!!! - " + this.szAreaID);        
+            }
+            else {
+                this.areaDom = tDom;
+                dom = tDom;
+            }
+        }
+      
         dom.onmousedown = this._onMouseDown.bind(this);
         dom.onmouseup = this._onMouseUp.bind(this);
         dom.onmousemove = this._onMouseMove.bind(this);
+        dom.onmouseout = this._onMouseOut.bind(this);
     }
 
     Show() {
@@ -136,6 +174,11 @@ const PentaVolumeSlide = class penta_volume_slide {
     GetValue() {
         return this.curValue;
     }
+
+    SetAreaElement(szID) {    
+        this.szAreaID = szID;
+    }
+    
 };
 
 export { PentaVolumeSlide };

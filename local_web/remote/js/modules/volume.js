@@ -25,7 +25,7 @@ const VolumeMain = class volume_main {
                 }
                 html += `
                     <div class="w-[200px] h-full mx-[8px]">
-                        <div class="flex justify-center items-center h-full bg-[#232326] rounded-[8px] px-[20px] pt-[20px] pb-[50px]">
+                        <div class="flex justify-center items-center h-full bg-[#232326] rounded-[8px] px-[20px] pt-[20px] pb-[50px]" id="slide_area_${i}">
                             <div class="h-full w-[32px] mr-[12px]">
                                 <div class="h-[calc(100%-560px)]">
                                     <div class="truncate w-[100px] text-[18px]">${szCHName}</div>
@@ -260,7 +260,9 @@ const VolumeMain = class volume_main {
         let i;
         this.sliders = new Array();
         for (i = 0; i < this.myTXDev.tx_channels.length + 1; i++) {
-            this.sliders.push(new PentaVolumeSlide(`slide_${i}`, 0, 1));
+            let tsl = new PentaVolumeSlide(`slide_${i}`, 0, 1);
+            tsl.SetAreaElement(`slide_area_${i}`);
+            this.sliders.push(tsl);
         }
 
         for (i = 0; i < this.sliders.length; i++) {

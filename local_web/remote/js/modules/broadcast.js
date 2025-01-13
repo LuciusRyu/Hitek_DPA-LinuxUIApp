@@ -471,8 +471,12 @@ const BroadcastMain = class broadcast_main {
         }
         
         this.volumeSliders = new Array();        
-        this.volumeSliders.push(new PentaVolumeSlide('main_vol_slide_0', 0, 1));        
-        this.volumeSliders.push(new PentaVolumeSlide('main_vol_slide_1', 0, 1));        
+        let tsl = new PentaVolumeSlide("main_vol_slide_0", 0, 1);
+        tsl.SetAreaElement("main_vol_slide_area_0");
+        this.volumeSliders.push(tsl);        
+        tsl = new PentaVolumeSlide("main_vol_slide_1", 0, 1);
+        tsl.SetAreaElement("main_vol_slide_area_1");
+        this.volumeSliders.push(tsl);        
 
         this.volumeSliders[0].Show();
         this.volumeSliders[0].SetValue(0);
@@ -559,7 +563,9 @@ const BroadcastMain = class broadcast_main {
         }
 
         this.volumeSliders = new Array();        
-        this.volumeSliders.push(new PentaVolumeSlide(`main_vol_slide_${this.volumeSlideType}`, 0, 1));
+        let tsl = new PentaVolumeSlide(`main_vol_slide_${this.volumeSlideType}`, 0, 1);
+        tsl.SetAreaElement(`main_vol_slide_area_${this.volumeSlideType}`);
+        this.volumeSliders.push(tsl);
 
         this.volumeSliders[0].Show();
         this.volumeSliders[0].SetValue(0);
@@ -1903,7 +1909,7 @@ const BroadcastMain = class broadcast_main {
 
         let res = `
         <div class="w-[${nSize}px] h-full mx-[${o8px}px]">
-            <div class="flex justify-center items-center h-full bg-[#232326] rounded-[${o8px}px] px-[${o20px}px] pt-[${o20px}px] pb-[${o50px}px]">
+            <div class="flex justify-center items-center h-full bg-[#232326] rounded-[${o8px}px] px-[${o20px}px] pt-[${o20px}px] pb-[${o50px}px]" id="main_vol_slide_area_${idN}">
                 <div class="h-full w-[${o32px}px] mr-[${o12px}px]">
                     <div class="h-[${o32px}px]">
                         <div class="truncate w-[${o100px}px] text-[${o18px}px]">${szName}</div>
